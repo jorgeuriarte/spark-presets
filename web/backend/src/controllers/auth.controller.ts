@@ -41,8 +41,21 @@ export class AuthController {
 
   async getCurrentUser(req: Request, res: Response, next: NextFunction) {
     try {
-      // TODO: Get current user from token
-      res.json({ user: req.user });
+      // In mock mode, return a mock user
+      if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_AUTH === 'true') {
+        res.json({
+          user: {
+            id: 'mock-user-123',
+            email: 'test@sparkpresets.com',
+            displayName: 'Test User',
+            dropboxConnected: true,
+            createdAt: new Date().toISOString(),
+            lastLoginAt: new Date().toISOString(),
+          }
+        });
+      } else {
+        res.json({ user: req.user });
+      }
     } catch (error) {
       next(error);
     }

@@ -1,12 +1,17 @@
 import { Router } from 'express';
 import { PresetController } from '../controllers/preset.controller';
 import { authMiddleware } from '../middleware/auth';
+import { mockAuthMiddleware } from '../middleware/mockAuth';
 
 const router = Router();
 const presetController = new PresetController();
 
-// All preset routes require authentication
-router.use(authMiddleware);
+// Use mock auth in development, real auth in production
+if (process.env.NODE_ENV === 'development' && process.env.USE_MOCK_AUTH === 'true') {
+  router.use(mockAuthMiddleware);
+} else {
+  router.use(authMiddleware);
+}
 
 // Preset CRUD operations
 router.get('/', presetController.getAllPresets);

@@ -1,11 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../middleware/errorHandler';
+import { MockDataService } from '../services/mockData.service';
 
 export class PresetController {
   async getAllPresets(req: Request, res: Response, next: NextFunction) {
     try {
-      // TODO: Implement get all presets
-      res.json({ presets: [] });
+      const presets = await MockDataService.getAllPresets();
+      res.json({ presets });
     } catch (error) {
       next(error);
     }
@@ -14,8 +15,13 @@ export class PresetController {
   async getPresetById(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      // TODO: Implement get preset by ID
-      res.json({ preset: null });
+      const preset = await MockDataService.getPresetById(id);
+      
+      if (!preset) {
+        throw new AppError(404, 'Preset not found');
+      }
+      
+      res.json({ preset });
     } catch (error) {
       next(error);
     }

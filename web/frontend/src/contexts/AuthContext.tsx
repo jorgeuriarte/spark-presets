@@ -20,6 +20,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const checkAuth = async () => {
     try {
+      // In development with mock auth, skip token check
+      if (process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_MOCK_AUTH === 'true') {
+        const { data } = await api.get('/auth/me');
+        setAuthState({
+          user: data.user,
+          isAuthenticated: true,
+          isLoading: false,
+          error: null,
+        });
+        return;
+      }
+
       const token = localStorage.getItem('authToken');
       if (!token) {
         setAuthState({
