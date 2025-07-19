@@ -4,7 +4,7 @@ import { Preset, PresetWithEffects } from '../types/preset';
 export const presetsService = {
   async getAll(): Promise<PresetWithEffects[]> {
     const { data } = await api.get('/presets');
-    return data.presets;
+    return data.data || data.presets || [];
   },
 
   async getById(id: string): Promise<PresetWithEffects> {

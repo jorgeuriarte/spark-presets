@@ -33,18 +33,20 @@ export const PresetItem: React.FC<PresetItemProps> = ({ preset, onEdit, onDelete
           )}
           
           {/* Effect badges */}
-          <div className="flex flex-wrap gap-2 mt-3">
-            {preset.effects.map((effect, index) => (
-              <span
-                key={index}
-                className={`px-3 py-1 text-xs font-medium rounded-full border ${
-                  effectColors[effect] || 'bg-gray-100 text-gray-700 border-gray-300'
-                }`}
-              >
-                {effect}
-              </span>
-            ))}
-          </div>
+          {preset.effects && preset.effects.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {preset.effects.map((effect, index) => (
+                <span
+                  key={index}
+                  className={`px-3 py-1 text-xs font-medium rounded-full border ${
+                    effectColors[effect] || 'bg-gray-100 text-gray-700 border-gray-300'
+                  }`}
+                >
+                  {effect}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Actions */}

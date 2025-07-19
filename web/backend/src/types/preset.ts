@@ -36,3 +36,8 @@ export interface PresetWithHash extends Preset {
   hash: string;
   filePath?: string;
 }
+
+export interface PresetWithEffects extends Preset {
+  effects: string[];
+  hash?: string;
+}

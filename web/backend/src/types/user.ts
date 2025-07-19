@@ -20,6 +20,9 @@ export interface UserPreferences {
 export interface AuthToken {
   userId: string;
   email: string;
+  dropboxId?: string;
+  dropboxConnected?: boolean;
+  displayName?: string;
   iat: number;
   exp: number;
 }

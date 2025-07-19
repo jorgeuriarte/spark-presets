@@ -61,11 +61,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   useEffect(() => {
+    // Check if there's a token in the URL (from OAuth callback)
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    
+    if (token) {
+      // Store the token and remove it from URL
+      localStorage.setItem('authToken', token);
+      
+      // Clean the URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('token');
+      window.history.replaceState({}, document.title, url.pathname + url.hash);
+    }
+    
     checkAuth();
   }, []);
 
   const login = () => {
-    window.location.href = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api/auth/dropbox`;
+    window.location.href = `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/auth/dropbox`;
   };
 
   const logout = async () => {
