@@ -91,14 +91,14 @@ export const BackupInfo: React.FC = () => {
           <div className="mt-4">
             <button
               onClick={handleImport}
-              disabled={isImporting || importMutation.isLoading}
+              disabled={isImporting || importMutation.isPending}
               className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white ${
-                isImporting || importMutation.isLoading
+                isImporting || importMutation.isPending
                   ? 'bg-blue-400 cursor-not-allowed'
                   : 'bg-blue-600 hover:bg-blue-700'
               } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
             >
-              {isImporting || importMutation.isLoading ? (
+              {isImporting || importMutation.isPending ? (
                 <>
                   <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
