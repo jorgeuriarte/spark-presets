@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { PresetItem } from '../components/PresetList/PresetItem';
 import { FloatingCreateButton } from '../components/PresetList/FloatingCreateButton';
+import { BackupInfo } from '../components/BackupInfo';
 import { presetsService } from '../services/presets';
 import { PresetWithEffects } from '../types/preset';
 import { useAuth } from '../contexts/AuthContext';
@@ -105,6 +106,9 @@ export const Dashboard: React.FC = () => {
           {presets.length} {presets.length === 1 ? 'preset' : 'presets'} disponibles
         </p>
       </div>
+
+      {/* Show backup info if connected but no presets */}
+      {user?.dropboxConnected && presets.length === 0 && <BackupInfo />}
 
       {presets.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-lg">

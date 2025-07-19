@@ -1,6 +1,9 @@
 import { Dropbox } from 'dropbox';
 import fetch from 'node-fetch';
 import AdmZip from 'adm-zip';
+import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
 interface DropboxTokenResponse {
   access_token: string;
@@ -19,10 +22,28 @@ interface SparkPresetFile {
   modified: string;
 }
 
+interface BackupInfo {
+  totalPresets: number;
+  categories: string[];
+  fileSize: number;
+  fileSizeMB: string;
+  lastModified?: string;
+  md5Hash?: string;
+}
+
+interface ImportResult {
+  imported: number;
+  updated: number;
+  skipped: number;
+  errors: string[];
+}
+
 export class DropboxService {
   private dbx: Dropbox | null = null;
   private readonly APP_FOLDER_PATH = '/'; // Root of app folder
   private readonly SPARK_AMP_PATH = '/Aplicaciones/Spark Amp'; // Spark Amp's folder in Dropbox
+  private readonly BACKUP_ARCHIVE_PATH = path.join(process.cwd(), 'data', 'backup-archives');
+  private readonly IMPORT_HISTORY_PATH = path.join(process.cwd(), 'data', 'import-history.json');
 
   constructor(accessToken?: string) {
     if (accessToken) {
@@ -403,6 +424,180 @@ export class DropboxService {
     } catch (error) {
       console.error('No access to Spark app folder:', error);
       return false;
+    }
+  }
+
+  /**
+   * Get backup info without downloading the entire file
+   */
+  async getBackupInfo(accessToken: string): Promise<BackupInfo> {
+    this.dbx = new Dropbox({ accessToken, fetch: fetch as any });
+    
+    try {
+      const zipPath = `${this.SPARK_AMP_PATH}/preset_backup.zip`;
+      
+      // Get file metadata
+      const metadata = await this.dbx.filesGetMetadata({ path: zipPath });
+      const fileMetadata = metadata.result as any;
+      
+      // Download just to get info (we'll optimize this later with partial download)
+      const response = await this.dbx.filesDownload({ path: zipPath });
+      const zipBuffer = (response.result as any).fileBinary;
+      
+      // Calculate MD5 hash
+      const md5Hash = crypto.createHash('md5').update(zipBuffer).digest('hex');
+      
+      // Extract info from ZIP
+      const zip = new AdmZip(zipBuffer);
+      const zipEntries = zip.getEntries();
+      
+      const categories = new Set<string>();
+      let presetCount = 0;
+      
+      for (const entry of zipEntries) {
+        if (!entry.isDirectory && entry.entryName.endsWith('preset.json')) {
+          presetCount++;
+          const pathParts = entry.entryName.split('/');
+          if (pathParts[2]) {
+            categories.add(pathParts[2]);
+          }
+        }
+      }
+      
+      return {
+        totalPresets: presetCount,
+        categories: Array.from(categories).sort(),
+        fileSize: fileMetadata.size || zipBuffer.length,
+        fileSizeMB: ((fileMetadata.size || zipBuffer.length) / 1024 / 1024).toFixed(2) + ' MB',
+        lastModified: fileMetadata.server_modified,
+        md5Hash
+      };
+    } catch (error: any) {
+      console.error('Error getting backup info:', error);
+      throw new Error(`Failed to get backup info: ${error.message}`);
+    }
+  }
+
+  /**
+   * Download and archive backup if it's new
+   */
+  async downloadAndArchiveBackup(accessToken: string): Promise<string> {
+    this.dbx = new Dropbox({ accessToken, fetch: fetch as any });
+    
+    // Ensure archive directory exists
+    if (!fs.existsSync(this.BACKUP_ARCHIVE_PATH)) {
+      fs.mkdirSync(this.BACKUP_ARCHIVE_PATH, { recursive: true });
+    }
+    
+    try {
+      const zipPath = `${this.SPARK_AMP_PATH}/preset_backup.zip`;
+      
+      // Download the ZIP file
+      const response = await this.dbx.filesDownload({ path: zipPath });
+      const zipBuffer = (response.result as any).fileBinary;
+      
+      // Calculate MD5 hash
+      const md5Hash = crypto.createHash('md5').update(zipBuffer).digest('hex');
+      
+      // Check if we already have this version
+      const archivePath = path.join(this.BACKUP_ARCHIVE_PATH, `backup_${md5Hash}.zip`);
+      
+      if (!fs.existsSync(archivePath)) {
+        // Save new version
+        fs.writeFileSync(archivePath, zipBuffer);
+        console.log(`Archived new backup: ${archivePath}`);
+      } else {
+        console.log(`Backup already archived: ${archivePath}`);
+      }
+      
+      return archivePath;
+    } catch (error: any) {
+      console.error('Error downloading backup:', error);
+      throw new Error(`Failed to download backup: ${error.message}`);
+    }
+  }
+
+  /**
+   * Import presets from archived backup
+   */
+  async importPresetsFromBackup(backupPath: string, userId: string): Promise<ImportResult> {
+    const result: ImportResult = {
+      imported: 0,
+      updated: 0,
+      skipped: 0,
+      errors: []
+    };
+    
+    try {
+      // Extract presets from ZIP
+      const presets = await this.extractPresetsFromZip(backupPath);
+      
+      // TODO: Process each preset
+      // - Check if exists by UUID
+      // - Compare hash to detect changes
+      // - Import/update/skip accordingly
+      
+      // For now, just count them as imported
+      result.imported = presets.length;
+      
+      // Save import history
+      this.saveImportHistory(userId, backupPath, result);
+      
+      return result;
+    } catch (error: any) {
+      console.error('Error importing presets:', error);
+      result.errors.push(error.message);
+      return result;
+    }
+  }
+
+  /**
+   * Save import history
+   */
+  private saveImportHistory(userId: string, backupPath: string, result: ImportResult) {
+    try {
+      let history: any[] = [];
+      
+      if (fs.existsSync(this.IMPORT_HISTORY_PATH)) {
+        const content = fs.readFileSync(this.IMPORT_HISTORY_PATH, 'utf8');
+        history = JSON.parse(content);
+      }
+      
+      history.push({
+        userId,
+        backupPath,
+        timestamp: new Date().toISOString(),
+        result
+      });
+      
+      // Ensure directory exists
+      const dir = path.dirname(this.IMPORT_HISTORY_PATH);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      
+      fs.writeFileSync(this.IMPORT_HISTORY_PATH, JSON.stringify(history, null, 2));
+    } catch (error) {
+      console.error('Error saving import history:', error);
+    }
+  }
+
+  /**
+   * Get import history for user
+   */
+  async getImportHistory(userId: string): Promise<any[]> {
+    try {
+      if (!fs.existsSync(this.IMPORT_HISTORY_PATH)) {
+        return [];
+      }
+      
+      const content = fs.readFileSync(this.IMPORT_HISTORY_PATH, 'utf8');
+      const history = JSON.parse(content);
+      
+      return history.filter((entry: any) => entry.userId === userId);
+    } catch (error) {
+      console.error('Error reading import history:', error);
+      return [];
     }
   }
 }
