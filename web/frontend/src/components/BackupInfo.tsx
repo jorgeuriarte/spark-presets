@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { dropboxService } from '../services/dropbox';
 import { presetsService } from '../services/presets';
 
@@ -136,13 +138,27 @@ export const BackupInfo: React.FC<BackupInfoProps> = ({ currentPresetCount }) =>
                 Comprobando disponibilidad de backup...
               </p>
             ) : hasNewPresets ? (
-              <p className="text-sm font-medium text-blue-300">
-                {newPresetsAvailable} {newPresetsAvailable === 1 ? 'nuevo preset disponible' : 'nuevos presets disponibles'} en tu backup de Spark
-              </p>
+              <div>
+                <p className="text-sm font-medium text-blue-300">
+                  {newPresetsAvailable} {newPresetsAvailable === 1 ? 'nuevo preset disponible' : 'nuevos presets disponibles'} en tu backup de Spark
+                </p>
+                {backupInfo?.lastModified && (
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Backup del {format(new Date(backupInfo.lastModified), "d 'de' MMMM 'a las' HH:mm", { locale: es })}
+                  </p>
+                )}
+              </div>
             ) : (
-              <p className="text-sm text-gray-300">
-                Backup de Spark sincronizado • {backupInfo?.totalPresets || 0} presets en total
-              </p>
+              <div>
+                <p className="text-sm text-gray-300">
+                  Backup de Spark sincronizado • {backupInfo?.totalPresets || 0} presets en total
+                </p>
+                {backupInfo?.lastModified && (
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Última actualización: {format(new Date(backupInfo.lastModified), "d 'de' MMMM 'a las' HH:mm", { locale: es })}
+                  </p>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -150,7 +166,7 @@ export const BackupInfo: React.FC<BackupInfoProps> = ({ currentPresetCount }) =>
         <div className="flex items-center space-x-2">
           {showDetails && (
             <span className="text-xs text-gray-400 mr-2">
-              {backupInfo?.fileSizeMB} • Actualizado: {backupInfo?.lastModified ? new Date(backupInfo.lastModified).toLocaleDateString() : 'N/A'}
+              {backupInfo?.fileSizeMB}
             </span>
           )}
           
@@ -226,6 +242,12 @@ export const BackupInfo: React.FC<BackupInfoProps> = ({ currentPresetCount }) =>
               <p className="font-medium text-gray-100">{currentPresetCount}</p>
             </div>
           </div>
+          
+          {backupInfo.lastModified && (
+            <div className="mt-3 text-xs text-gray-400">
+              <p>Fecha del backup: {format(new Date(backupInfo.lastModified), "EEEE d 'de' MMMM 'de' yyyy 'a las' HH:mm:ss", { locale: es })}</p>
+            </div>
+          )}
           
           {/* Show new presets list when available */}
           {hasNewPresets && newPresetNames.length > 0 && (
