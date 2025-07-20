@@ -654,8 +654,11 @@ export class DropboxService {
       
       console.log(`Import completed: ${result.imported} imported, ${result.errors.length} errors`);
       
-      // Save import history
-      this.saveImportHistory(userId, backupPath, result);
+      // Get backup info for history
+      const backupInfo = await this.getBackupInfoFromArchive(backupPath);
+      
+      // Save import history with backup info
+      this.saveImportHistory(userId, backupPath, result, backupInfo);
       
       return result;
     } catch (error: any) {
@@ -668,7 +671,7 @@ export class DropboxService {
   /**
    * Save import history
    */
-  private saveImportHistory(userId: string, backupPath: string, result: ImportResult) {
+  private saveImportHistory(userId: string, backupPath: string, result: ImportResult, backupInfo?: BackupInfo) {
     try {
       let history: any[] = [];
       
@@ -681,7 +684,8 @@ export class DropboxService {
         userId,
         backupPath,
         timestamp: new Date().toISOString(),
-        result
+        result,
+        backupInfo
       });
       
       // Ensure directory exists
@@ -693,6 +697,64 @@ export class DropboxService {
       fs.writeFileSync(this.IMPORT_HISTORY_PATH, JSON.stringify(history, null, 2));
     } catch (error) {
       console.error('Error saving import history:', error);
+    }
+  }
+
+  /**
+   * Get backup info from archived file
+   */
+  private async getBackupInfoFromArchive(archivePath: string): Promise<BackupInfo> {
+    try {
+      const zipBuffer = fs.readFileSync(archivePath);
+      const zipData = await JSZip.loadAsync(zipBuffer);
+      
+      // Get file stats
+      const stats = fs.statSync(archivePath);
+      const fileSize = stats.size;
+      const lastModified = stats.mtime.toISOString();
+      
+      // Calculate MD5 hash
+      const md5Hash = crypto.createHash('md5').update(zipBuffer).digest('hex');
+      
+      // Count presets and get categories
+      const presetFiles = Object.keys(zipData.files).filter(f => f.endsWith('.json'));
+      const categories = new Set<string>();
+      const presetNames: string[] = [];
+      
+      for (const file of presetFiles) {
+        try {
+          const content = await zipData.files[file].async('string');
+          const preset = JSON.parse(content);
+          if (preset.category) {
+            categories.add(preset.category);
+          }
+          if (preset.name) {
+            presetNames.push(preset.name);
+          }
+        } catch (error) {
+          // Skip invalid preset files
+        }
+      }
+      
+      return {
+        totalPresets: presetFiles.length,
+        categories: Array.from(categories).sort(),
+        fileSize,
+        fileSizeMB: `${(fileSize / (1024 * 1024)).toFixed(2)} MB`,
+        lastModified,
+        md5Hash,
+        presetNames
+      };
+    } catch (error) {
+      console.error('Error getting backup info from archive:', error);
+      // Return minimal info on error
+      return {
+        totalPresets: 0,
+        categories: [],
+        fileSize: 0,
+        fileSizeMB: '0 MB',
+        md5Hash: crypto.createHash('md5').update(archivePath).digest('hex')
+      };
     }
   }
 

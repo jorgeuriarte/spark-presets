@@ -9,15 +9,6 @@ interface PresetItemProps {
   onDelete: (preset: PresetWithEffects) => void;
 }
 
-const effectColors: { [key: string]: string } = {
-  'Overdrive': 'bg-blue-900/30 text-blue-400 border-blue-700',
-  'Distortion': 'bg-red-900/30 text-red-400 border-red-700',
-  'Delay': 'bg-green-900/30 text-green-400 border-green-700',
-  'Reverb': 'bg-yellow-900/30 text-yellow-400 border-yellow-700',
-  'Chorus': 'bg-purple-900/30 text-purple-400 border-purple-700',
-  'Compressor': 'bg-gray-700 text-gray-300 border-gray-600',
-  'Noise Gate': 'bg-indigo-900/30 text-indigo-400 border-indigo-700',
-};
 
 const categoryColors: { [key: string]: string } = {
   'Alternative': 'bg-orange-900/30 text-orange-400 border border-orange-700',
@@ -70,21 +61,6 @@ export const PresetItem: React.FC<PresetItemProps> = ({ preset, onEdit, onDelete
             </span>
           </div>
           
-          {/* Effect badges - more compact */}
-          {preset.effects && preset.effects.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {preset.effects.map((effect, index) => (
-                <span
-                  key={index}
-                  className={`px-2 py-0.5 text-xs font-medium rounded-full border ${
-                    effectColors[effect] || 'bg-gray-700 text-gray-300 border-gray-600'
-                  }`}
-                >
-                  {effect}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Actions */}
@@ -117,12 +93,10 @@ export const PresetItem: React.FC<PresetItemProps> = ({ preset, onEdit, onDelete
         </div>
       </div>
       
-      {/* Preset Viewer - Inside the same card */}
-      {showViewer && (
-        <div className="mt-4 pt-4 border-t border-gray-700">
-          <PresetViewer preset={preset} />
-        </div>
-      )}
+      {/* Preset Viewer - Always visible, changes mode based on showViewer */}
+      <div className="mt-3">
+        <PresetViewer preset={preset} mode={showViewer ? "expanded" : "compact"} />
+      </div>
     </div>
   );
 };

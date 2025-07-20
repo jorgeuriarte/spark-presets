@@ -6,6 +6,7 @@ import './PresetViewer.css';
 
 interface PresetViewerProps {
   preset: PresetWithEffects;
+  mode?: 'compact' | 'expanded';
 }
 
 interface EffectTooltipProps {
@@ -124,10 +125,32 @@ const EffectTooltip: React.FC<EffectTooltipProps> = ({ effect, sprite, isActive 
   );
 };
 
-const PresetViewer: React.FC<PresetViewerProps> = ({ preset }) => {
+const PresetViewer: React.FC<PresetViewerProps> = ({ preset, mode = 'expanded' }) => {
   const [activeTooltip, setActiveTooltip] = useState<number | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
   const effectRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Check if click was outside all effect elements
+      const clickedOnEffect = effectRefs.current.some(ref => 
+        ref && ref.contains(event.target as Node)
+      );
+      
+      if (!clickedOnEffect && activeTooltip !== null) {
+        setActiveTooltip(null);
+        setTooltipPosition(null);
+      }
+    };
+
+    // Add event listener when component mounts
+    document.addEventListener('click', handleClickOutside);
+
+    // Cleanup on unmount
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [activeTooltip]);
   
   if (!preset.sigpath || preset.sigpath.length === 0) {
     return (
@@ -143,6 +166,8 @@ const PresetViewer: React.FC<PresetViewerProps> = ({ preset }) => {
   const orderedEffects = [...signalPath];
 
   const handleEffectClick = (index: number, event: React.MouseEvent) => {
+    event.stopPropagation();
+    
     if (activeTooltip === index) {
       setActiveTooltip(null);
       setTooltipPosition(null);
@@ -156,62 +181,114 @@ const PresetViewer: React.FC<PresetViewerProps> = ({ preset }) => {
     }
   };
 
+  // Effect colors for badges
+  const getEffectColor = (dspId: string) => {
+    const name = getDisplayName(dspId);
+    const upperName = name.toUpperCase();
+    
+    // Drives & Distortions
+    if (upperName.includes('OVERDRIVE') || upperName.includes('DRIVE') || upperName.includes('TUBE') || upperName.includes('BOOSTER')) {
+      return 'bg-blue-900/30 text-blue-400 border-blue-700';
+    }
+    if (upperName.includes('DISTORTION') || upperName.includes('FUZZ') || upperName.includes('MUFF') || upperName.includes('BLACK OP')) {
+      return 'bg-red-900/30 text-red-400 border-red-700';
+    }
+    
+    // Time-based effects
+    if (upperName.includes('DELAY') || upperName.includes('ECHO')) {
+      return 'bg-green-900/30 text-green-400 border-green-700';
+    }
+    if (upperName.includes('REVERB') || upperName.includes('HALL') || upperName.includes('ROOM') || upperName.includes('PLATE') || upperName.includes('SPRING')) {
+      return 'bg-yellow-900/30 text-yellow-400 border-yellow-700';
+    }
+    
+    // Modulation
+    if (upperName.includes('CHORUS') || upperName.includes('FLANGER') || upperName.includes('PHASER') || upperName.includes('VIBRATO') || upperName.includes('VIBE') || upperName.includes('TREMOLO')) {
+      return 'bg-purple-900/30 text-purple-400 border-purple-700';
+    }
+    
+    // Dynamics
+    if (upperName.includes('COMP') || upperName.includes('SUSTAINER')) {
+      return 'bg-gray-700 text-gray-300 border-gray-600';
+    }
+    if (upperName.includes('GATE')) {
+      return 'bg-indigo-900/30 text-indigo-400 border-indigo-700';
+    }
+    
+    // Amplifiers
+    if (dspId.includes('Amp') || upperName.includes('TWIN') || upperName.includes('PLEXI') || upperName.includes('JCM') || upperName.includes('ACOUSTIC')) {
+      return 'bg-orange-900/30 text-orange-400 border-orange-700';
+    }
+    
+    return 'bg-gray-700 text-gray-300 border-gray-600'; // default
+  };
+
+
   return (
     <div className="preset-viewer">
       <div className="signal-chain flex items-center gap-2 flex-wrap">
         {orderedEffects.map((effect, index) => {
           const sprite = getSpriteByDspId(effect.dspId);
           const style = generateSpriteStyle(effect.dspId);
-          
-          if (!sprite || !style) {
-            // Check if effect is active based on active/isEnabled fields first, then params
-            const isActive = effect.active !== false && effect.isEnabled !== false && 
-                            effect.params && effect.params.length > 0 && 
-                            effect.params.some(p => p.value > 0);
-            const effectClass = `effect-item unknown ${isActive ? 'active' : 'bypassed'}`;
-            
-            return (
-              <React.Fragment key={index}>
-                {index > 0 && <div className="signal-arrow text-gray-400">→</div>}
-                <div 
-                  className={`${effectClass} relative cursor-pointer`}
-                  onClick={(e) => handleEffectClick(index, e)}
-                  ref={(el) => { effectRefs.current[index] = el; }}
-                >
-                  <div className="effect-placeholder">?</div>
-                  <span className="effect-name text-xs">
-                    {getDisplayName(effect.dspId)}
-                  </span>
-                </div>
-              </React.Fragment>
-            );
-          }
-
-          // Check if effect is active based on active/isEnabled fields first, then params
           const isActive = effect.active !== false && effect.isEnabled !== false && 
                           effect.params && effect.params.length > 0 && 
                           effect.params.some(p => p.value > 0);
-          const effectClass = `effect-item ${isActive ? 'active' : 'bypassed'}`;
-
+          const effectName = getDisplayName(effect.dspId);
+          const effectColor = getEffectColor(effect.dspId);
+          
           return (
             <React.Fragment key={index}>
-              {index > 0 && <div className="signal-arrow text-gray-400">→</div>}
-              <div 
-                className={`${effectClass} relative cursor-pointer`}
-                onClick={(e) => handleEffectClick(index, e)}
-                ref={(el) => { effectRefs.current[index] = el; }}
-              >
-                <div 
-                  className="effect-sprite" 
-                  style={style}
-                />
-                <span className="effect-name text-xs">
-                  {getDisplayName(effect.dspId)}
+              {/* Show arrows only in expanded mode */}
+              {index > 0 && mode === 'expanded' && (
+                <div className="signal-arrow text-gray-400">→</div>
+              )}
+              
+              <div className="effect-item-container">
+                {/* Show sprite/placeholder only in expanded mode */}
+                {mode === 'expanded' && (
+                  <div 
+                    className={`effect-item ${isActive ? 'active' : 'bypassed'} relative cursor-pointer`}
+                    onClick={(e) => handleEffectClick(index, e)}
+                    ref={(el) => { effectRefs.current[index] = el; }}
+                  >
+                    {(!sprite || !style) ? (
+                      <div className="effect-placeholder">?</div>
+                    ) : (
+                      <div 
+                        className="effect-sprite" 
+                        style={style}
+                      />
+                    )}
+                  </div>
+                )}
+                
+                {/* Always show badge as the name */}
+                <span
+                  onClick={(e) => handleEffectClick(index, e)}
+                  ref={(el) => { effectRefs.current[index] = el as any; }}
+                  className={`px-2 py-0.5 text-xs font-medium rounded-full border cursor-pointer transition-all inline-block mt-1 ${
+                    effectColor
+                  } ${!isActive ? 'opacity-40 line-through' : ''} ${
+                    activeTooltip === index ? 'ring-2 ring-blue-400' : ''
+                  }`}
+                >
+                  {effectName}
                 </span>
               </div>
             </React.Fragment>
           );
         })}
+      </div>
+
+      {/* Stats section */}
+      <div className="mt-3 text-sm text-gray-400">
+        <span>
+          {orderedEffects.filter(e => 
+            e.active !== false && e.isEnabled !== false && 
+            e.params?.some(p => p.value > 0)
+          ).length} de {signalPath.length} efectos activos
+        </span>
+        {preset.bpm && <span className="ml-4">BPM: {preset.bpm}</span>}
       </div>
 
       {/* Render tooltip with fixed positioning to avoid opacity inheritance */}
@@ -242,24 +319,6 @@ const PresetViewer: React.FC<PresetViewerProps> = ({ preset }) => {
           })()}
         </div>
       )}
-
-      <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-        <div>
-          <span className="text-gray-400">Efectos activos:</span>
-          <span className="ml-2 font-medium">
-            {orderedEffects.filter(e => 
-              e.active !== false && e.isEnabled !== false && 
-              e.params?.some(p => p.value > 0)
-            ).length} de {signalPath.length}
-          </span>
-        </div>
-        {preset.bpm && (
-          <div>
-            <span className="text-gray-400">BPM:</span>
-            <span className="ml-2 font-medium">{preset.bpm}</span>
-          </div>
-        )}
-      </div>
     </div>
   );
 };

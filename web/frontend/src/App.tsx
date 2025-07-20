@@ -6,6 +6,7 @@ import { Header } from './components/Layout/Header';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { PresetViewerDemo } from './pages/PresetViewerDemo';
+import { History } from './pages/History';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,6 +64,14 @@ const AppContent: React.FC = () => {
           element={
             <ProtectedRoute>
               <div>Edit Preset</div>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/history"
+          element={
+            <ProtectedRoute>
+              <History />
             </ProtectedRoute>
           }
         />
