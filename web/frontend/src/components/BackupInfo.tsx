@@ -5,6 +5,13 @@ import { es } from 'date-fns/locale';
 import { dropboxService } from '../services/dropbox';
 import { presetsService } from '../services/presets';
 
+interface PresetInfo {
+  id: string;
+  name: string;
+  category?: string;
+  contentHash?: string;
+}
+
 interface BackupInfo {
   totalPresets: number;
   categories: string[];
@@ -13,7 +20,15 @@ interface BackupInfo {
   lastModified?: string;
   md5Hash?: string;
   presetNames?: string[]; // List of preset names in backup (legacy)
-  presets?: Array<{ id: string; name: string }>; // List of presets with ID and name
+  presets?: PresetInfo[]; // List of presets with full info
+}
+
+interface PresetChange {
+  preset: PresetInfo;
+  type: 'name' | 'category' | 'content' | 'multiple';
+  changes: string[];
+  oldName?: string;
+  oldCategory?: string;
 }
 
 interface BackupInfoProps {
@@ -45,12 +60,69 @@ export const BackupInfo: React.FC<BackupInfoProps> = ({ currentPresetCount }) =>
     queryFn: presetsService.getAll,
   });
 
-  // Calculate new presets available by comparing IDs, not names
-  const currentPresetIds = new Set(currentPresets.map((p: any) => p.meta?.id || p.id));
+  // Calculate new and modified presets
+  const currentPresetMap = new Map(
+    currentPresets.map((p: any) => [
+      p.meta?.id || p.id,
+      {
+        id: p.meta?.id || p.id,
+        name: p.meta?.name || p.name,
+        category: p.meta?.category || p.category,
+        contentHash: p.meta?.contentHash || p.contentHash
+      }
+    ])
+  );
+  
   const backupPresets = backupInfo?.presets || [];
-  const newPresets = backupPresets.filter((preset: any) => !currentPresetIds.has(preset.id));
+  const newPresets: PresetInfo[] = [];
+  const modifiedPresets: PresetChange[] = [];
+  
+  backupPresets.forEach((backupPreset: PresetInfo) => {
+    const currentPreset = currentPresetMap.get(backupPreset.id);
+    
+    if (!currentPreset) {
+      // New preset
+      newPresets.push(backupPreset);
+    } else {
+      // Check for modifications
+      const changes: string[] = [];
+      let oldName: string | undefined;
+      let oldCategory: string | undefined;
+      
+      if (currentPreset.name !== backupPreset.name) {
+        changes.push('nombre');
+        oldName = currentPreset.name;
+      }
+      
+      if (currentPreset.category !== backupPreset.category) {
+        changes.push('categoría');
+        oldCategory = currentPreset.category;
+      }
+      
+      if (currentPreset.contentHash && backupPreset.contentHash && 
+          currentPreset.contentHash !== backupPreset.contentHash) {
+        changes.push('configuración');
+      }
+      
+      if (changes.length > 0) {
+        modifiedPresets.push({
+          preset: backupPreset,
+          type: changes.length > 1 ? 'multiple' : 
+                changes[0] === 'nombre' ? 'name' : 
+                changes[0] === 'categoría' ? 'category' : 'content',
+          changes,
+          oldName,
+          oldCategory
+        });
+      }
+    }
+  });
+  
   const newPresetsAvailable = newPresets.length;
+  const modifiedPresetsAvailable = modifiedPresets.length;
   const hasNewPresets = newPresetsAvailable > 0;
+  const hasModifiedPresets = modifiedPresetsAvailable > 0;
+  const hasChanges = hasNewPresets || hasModifiedPresets;
 
   const importMutation = useMutation({
     mutationFn: dropboxService.importBackup,
@@ -68,9 +140,16 @@ export const BackupInfo: React.FC<BackupInfoProps> = ({ currentPresetCount }) =>
   });
 
   const handleImport = async () => {
-    const message = hasNewPresets 
-      ? `¿Deseas importar ${newPresetsAvailable} nuevos presets del backup?`
-      : '¿Deseas sincronizar todos los presets del backup? Esto puede tomar unos momentos.';
+    let message = '';
+    if (hasNewPresets && hasModifiedPresets) {
+      message = `¿Deseas importar ${newPresetsAvailable} nuevos presets y actualizar ${modifiedPresetsAvailable} presets modificados?`;
+    } else if (hasNewPresets) {
+      message = `¿Deseas importar ${newPresetsAvailable} nuevos presets del backup?`;
+    } else if (hasModifiedPresets) {
+      message = `¿Deseas actualizar ${modifiedPresetsAvailable} presets modificados?`;
+    } else {
+      message = '¿Deseas sincronizar todos los presets del backup? Esto puede tomar unos momentos.';
+    }
       
     if (window.confirm(message)) {
       setIsImporting(true);
@@ -139,10 +218,16 @@ export const BackupInfo: React.FC<BackupInfoProps> = ({ currentPresetCount }) =>
                 </svg>
                 Comprobando disponibilidad de backup...
               </p>
-            ) : hasNewPresets ? (
+            ) : hasChanges ? (
               <div>
                 <p className="text-sm font-medium text-blue-300">
-                  {newPresetsAvailable} {newPresetsAvailable === 1 ? 'nuevo preset disponible' : 'nuevos presets disponibles'} en tu backup de Spark
+                  {hasNewPresets && hasModifiedPresets ? (
+                    <>{newPresetsAvailable} {newPresetsAvailable === 1 ? 'preset nuevo' : 'presets nuevos'} y {modifiedPresetsAvailable} {modifiedPresetsAvailable === 1 ? 'modificado' : 'modificados'}</>
+                  ) : hasNewPresets ? (
+                    <>{newPresetsAvailable} {newPresetsAvailable === 1 ? 'nuevo preset disponible' : 'nuevos presets disponibles'} en tu backup de Spark</>
+                  ) : (
+                    <>{modifiedPresetsAvailable} {modifiedPresetsAvailable === 1 ? 'preset modificado' : 'presets modificados'} en tu backup de Spark</>
+                  )}
                 </p>
                 {backupInfo?.lastModified && (
                   <p className="text-xs text-gray-400 mt-0.5">
@@ -183,7 +268,7 @@ export const BackupInfo: React.FC<BackupInfoProps> = ({ currentPresetCount }) =>
             </svg>
           </button>
           
-          {hasNewPresets && (
+          {hasChanges && (
             <button
               onClick={handleImport}
               disabled={isImporting || importMutation.isPending}
@@ -202,7 +287,7 @@ export const BackupInfo: React.FC<BackupInfoProps> = ({ currentPresetCount }) =>
                   Importando...
                 </>
               ) : (
-                'Importar ahora'
+                'Actualizar ahora'
               )}
             </button>
           )}
@@ -257,7 +342,7 @@ export const BackupInfo: React.FC<BackupInfoProps> = ({ currentPresetCount }) =>
               <p className="text-xs text-gray-300 font-medium mb-2">Presets nuevos disponibles:</p>
               <div className="max-h-32 overflow-y-auto">
                 <ul className="text-xs text-gray-300 space-y-1">
-                  {newPresets.slice(0, 10).map((preset: any, index: number) => (
+                  {newPresets.slice(0, 10).map((preset: PresetInfo, index: number) => (
                     <li key={preset.id || index} className="flex items-center">
                       <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>
                       {preset.name}
@@ -265,6 +350,39 @@ export const BackupInfo: React.FC<BackupInfoProps> = ({ currentPresetCount }) =>
                   ))}
                   {newPresets.length > 10 && (
                     <li className="text-gray-400 italic">...y {newPresets.length - 10} más</li>
+                  )}
+                </ul>
+              </div>
+            </div>
+          )}
+          
+          {/* Show modified presets list when available */}
+          {hasModifiedPresets && modifiedPresets.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-700">
+              <p className="text-xs text-gray-300 font-medium mb-2">Presets modificados:</p>
+              <div className="max-h-32 overflow-y-auto">
+                <ul className="text-xs text-gray-300 space-y-2">
+                  {modifiedPresets.slice(0, 10).map((change: PresetChange) => (
+                    <li key={change.preset.id} className="flex items-start">
+                      <span className="w-1.5 h-1.5 bg-yellow-500 rounded-full mr-2 mt-0.5"></span>
+                      <div className="flex-1">
+                        <span className="font-medium">{change.preset.name}</span>
+                        <div className="text-gray-400 mt-0.5">
+                          {change.changes.includes('nombre') && change.oldName && (
+                            <div>• Nombre: {change.oldName} → {change.preset.name}</div>
+                          )}
+                          {change.changes.includes('categoría') && change.oldCategory && (
+                            <div>• Categoría: {change.oldCategory} → {change.preset.category}</div>
+                          )}
+                          {change.changes.includes('configuración') && (
+                            <div>• Configuración modificada</div>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                  {modifiedPresets.length > 10 && (
+                    <li className="text-gray-400 italic">...y {modifiedPresets.length - 10} más</li>
                   )}
                 </ul>
               </div>

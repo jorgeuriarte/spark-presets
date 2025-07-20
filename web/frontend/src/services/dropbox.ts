@@ -1,5 +1,12 @@
 import apiClient from './api';
 
+interface PresetInfo {
+  id: string;
+  name: string;
+  category?: string;
+  contentHash?: string; // MD5 hash of the preset content
+}
+
 interface BackupInfo {
   totalPresets: number;
   categories: string[];
@@ -8,7 +15,7 @@ interface BackupInfo {
   lastModified?: string;
   md5Hash?: string;
   presetNames?: string[];
-  presets?: Array<{ id: string; name: string }>;
+  presets?: PresetInfo[];
 }
 
 interface ImportResult {

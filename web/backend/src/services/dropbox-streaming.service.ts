@@ -3,6 +3,13 @@ import AdmZip from 'adm-zip';
 import crypto from 'crypto';
 import { Readable } from 'stream';
 
+interface PresetInfo {
+  id: string;
+  name: string;
+  category?: string;
+  contentHash?: string;
+}
+
 interface BackupInfo {
   totalPresets: number;
   categories: string[];
@@ -11,7 +18,7 @@ interface BackupInfo {
   lastModified?: string;
   md5Hash?: string;
   presetNames?: string[];
-  presets?: Array<{ id: string; name: string }>;
+  presets?: PresetInfo[];
 }
 
 interface ImportResult {
@@ -136,21 +143,34 @@ export class DropboxStreamingService {
       const presetFiles = zipEntries.filter(entry => entry.entryName.endsWith('.json'));
       const categories = new Set<string>();
       const presetNames: string[] = [];
-      const presets: Array<{ id: string; name: string }> = [];
+      const presets: PresetInfo[] = [];
       
       for (const entry of presetFiles) {
         try {
           const content = entry.getData().toString('utf8');
           const preset = JSON.parse(content);
-          if (preset.category) {
-            categories.add(preset.category);
+          const pathParts = entry.entryName.split('/');
+          const categoryFromPath = pathParts[2];
+          
+          if (preset.category || categoryFromPath) {
+            categories.add(preset.category || categoryFromPath);
           }
+          
           const name = preset.name || 'Unknown';
-          const id = preset.id || entry.entryName.split('/').slice(-2)[0];
+          const id = preset.id || pathParts[pathParts.length - 2];
+          const category = preset.category || categoryFromPath;
+          
+          // Generate content hash
+          const toneData = preset.tone || preset;
+          const contentToHash = JSON.stringify({
+            sigpath: toneData.sigpath || [],
+            bpm: toneData.bpm
+          });
+          const contentHash = crypto.createHash('md5').update(contentToHash).digest('hex');
           
           presetNames.push(name);
           if (id) {
-            presets.push({ id, name });
+            presets.push({ id, name, category, contentHash });
           }
         } catch (error) {
           // Skip invalid preset files

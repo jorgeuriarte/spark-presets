@@ -23,6 +23,13 @@ interface SparkPresetFile {
   modified: string;
 }
 
+interface PresetInfo {
+  id: string;
+  name: string;
+  category?: string;
+  contentHash?: string;
+}
+
 interface BackupInfo {
   totalPresets: number;
   categories: string[];
@@ -31,7 +38,7 @@ interface BackupInfo {
   lastModified?: string;
   md5Hash?: string;
   presetNames?: string[];
-  presets?: Array<{ id: string; name: string }>;
+  presets?: PresetInfo[];
 }
 
 interface ImportResult {
@@ -521,27 +528,42 @@ export class DropboxService {
       
       const categories = new Set<string>();
       const presetNames: string[] = [];
-      const presets: Array<{ id: string; name: string }> = [];
+      const presets: PresetInfo[] = [];
       let presetCount = 0;
       
       for (const entry of zipEntries) {
         if (!entry.isDirectory && entry.entryName.endsWith('preset.json')) {
           presetCount++;
           const pathParts = entry.entryName.split('/');
-          if (pathParts[2]) {
-            categories.add(pathParts[2]);
+          const categoryFromPath = pathParts[2];
+          if (categoryFromPath) {
+            categories.add(categoryFromPath);
           }
           
-          // Try to extract preset name and ID from the JSON
+          // Try to extract preset info from the JSON
           try {
             const presetContent = entry.getData().toString('utf8');
             const presetData = JSON.parse(presetContent);
             const name = presetData.meta?.name || presetData.name || presetData.preset_name || 'Unknown Preset';
             const id = presetData.meta?.id || presetData.id || pathParts[pathParts.length - 2];
+            const category = presetData.meta?.category || presetData.category || categoryFromPath;
+            
+            // Generate content hash from preset tone data
+            const toneData = presetData.tone || presetData;
+            const contentToHash = JSON.stringify({
+              sigpath: toneData.sigpath || [],
+              bpm: toneData.bpm
+            });
+            const contentHash = crypto.createHash('md5').update(contentToHash).digest('hex');
             
             presetNames.push(name);
             if (id) {
-              presets.push({ id, name });
+              presets.push({ 
+                id, 
+                name,
+                category,
+                contentHash
+              });
             }
           } catch (err) {
             // If we can't parse, use folder name
@@ -549,7 +571,11 @@ export class DropboxService {
             presetNames.push(folderName);
             // Try to use folder name as ID if it looks like a UUID
             if (folderName && folderName.match(/^[0-9a-fA-F-]{36}$/)) {
-              presets.push({ id: folderName, name: folderName });
+              presets.push({ 
+                id: folderName, 
+                name: folderName,
+                category: categoryFromPath
+              });
             }
           }
         }
