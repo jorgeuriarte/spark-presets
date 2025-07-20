@@ -11,6 +11,7 @@ interface BackupInfo {
   lastModified?: string;
   md5Hash?: string;
   presetNames?: string[];
+  presets?: Array<{ id: string; name: string }>;
 }
 
 interface ImportResult {
@@ -135,6 +136,7 @@ export class DropboxStreamingService {
       const presetFiles = zipEntries.filter(entry => entry.entryName.endsWith('.json'));
       const categories = new Set<string>();
       const presetNames: string[] = [];
+      const presets: Array<{ id: string; name: string }> = [];
       
       for (const entry of presetFiles) {
         try {
@@ -143,8 +145,12 @@ export class DropboxStreamingService {
           if (preset.category) {
             categories.add(preset.category);
           }
-          if (preset.name) {
-            presetNames.push(preset.name);
+          const name = preset.name || 'Unknown';
+          const id = preset.id || entry.entryName.split('/').slice(-2)[0];
+          
+          presetNames.push(name);
+          if (id) {
+            presets.push({ id, name });
           }
         } catch (error) {
           // Skip invalid preset files
@@ -158,7 +164,8 @@ export class DropboxStreamingService {
         fileSizeMB: `${(metadata.size / (1024 * 1024)).toFixed(2)} MB`,
         lastModified: metadata.server_modified,
         md5Hash,
-        presetNames
+        presetNames,
+        presets
       };
     } catch (error: any) {
       console.error('Error getting backup info:', error);

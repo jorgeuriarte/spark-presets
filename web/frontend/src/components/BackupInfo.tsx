@@ -12,7 +12,8 @@ interface BackupInfo {
   fileSizeMB: string;
   lastModified?: string;
   md5Hash?: string;
-  presetNames?: string[]; // List of preset names in backup
+  presetNames?: string[]; // List of preset names in backup (legacy)
+  presets?: Array<{ id: string; name: string }>; // List of presets with ID and name
 }
 
 interface BackupInfoProps {
@@ -44,10 +45,11 @@ export const BackupInfo: React.FC<BackupInfoProps> = ({ currentPresetCount }) =>
     queryFn: presetsService.getAll,
   });
 
-  // Calculate new presets available
-  const currentPresetNames = new Set(currentPresets.map((p: any) => p.meta?.name || p.name));
-  const newPresetNames = backupInfo?.presetNames?.filter((name: string) => !currentPresetNames.has(name)) || [];
-  const newPresetsAvailable = newPresetNames.length;
+  // Calculate new presets available by comparing IDs, not names
+  const currentPresetIds = new Set(currentPresets.map((p: any) => p.meta?.id || p.id));
+  const backupPresets = backupInfo?.presets || [];
+  const newPresets = backupPresets.filter((preset: any) => !currentPresetIds.has(preset.id));
+  const newPresetsAvailable = newPresets.length;
   const hasNewPresets = newPresetsAvailable > 0;
 
   const importMutation = useMutation({
@@ -250,19 +252,19 @@ export const BackupInfo: React.FC<BackupInfoProps> = ({ currentPresetCount }) =>
           )}
           
           {/* Show new presets list when available */}
-          {hasNewPresets && newPresetNames.length > 0 && (
+          {hasNewPresets && newPresets.length > 0 && (
             <div className="mt-3 pt-3 border-t border-gray-700">
               <p className="text-xs text-gray-300 font-medium mb-2">Presets nuevos disponibles:</p>
               <div className="max-h-32 overflow-y-auto">
                 <ul className="text-xs text-gray-300 space-y-1">
-                  {newPresetNames.slice(0, 10).map((name: string, index: number) => (
-                    <li key={index} className="flex items-center">
+                  {newPresets.slice(0, 10).map((preset: any, index: number) => (
+                    <li key={preset.id || index} className="flex items-center">
                       <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>
-                      {name}
+                      {preset.name}
                     </li>
                   ))}
-                  {newPresetNames.length > 10 && (
-                    <li className="text-gray-400 italic">...y {newPresetNames.length - 10} más</li>
+                  {newPresets.length > 10 && (
+                    <li className="text-gray-400 italic">...y {newPresets.length - 10} más</li>
                   )}
                 </ul>
               </div>

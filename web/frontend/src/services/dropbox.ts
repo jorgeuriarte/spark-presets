@@ -8,6 +8,7 @@ interface BackupInfo {
   lastModified?: string;
   md5Hash?: string;
   presetNames?: string[];
+  presets?: Array<{ id: string; name: string }>;
 }
 
 interface ImportResult {

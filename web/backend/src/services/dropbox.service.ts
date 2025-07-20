@@ -31,6 +31,7 @@ interface BackupInfo {
   lastModified?: string;
   md5Hash?: string;
   presetNames?: string[];
+  presets?: Array<{ id: string; name: string }>;
 }
 
 interface ImportResult {
@@ -520,6 +521,7 @@ export class DropboxService {
       
       const categories = new Set<string>();
       const presetNames: string[] = [];
+      const presets: Array<{ id: string; name: string }> = [];
       let presetCount = 0;
       
       for (const entry of zipEntries) {
@@ -530,15 +532,25 @@ export class DropboxService {
             categories.add(pathParts[2]);
           }
           
-          // Try to extract preset name from the JSON
+          // Try to extract preset name and ID from the JSON
           try {
             const presetContent = entry.getData().toString('utf8');
             const presetData = JSON.parse(presetContent);
             const name = presetData.meta?.name || presetData.name || presetData.preset_name || 'Unknown Preset';
+            const id = presetData.meta?.id || presetData.id || pathParts[pathParts.length - 2];
+            
             presetNames.push(name);
+            if (id) {
+              presets.push({ id, name });
+            }
           } catch (err) {
             // If we can't parse, use folder name
-            presetNames.push(pathParts[pathParts.length - 2] || 'Unknown');
+            const folderName = pathParts[pathParts.length - 2] || 'Unknown';
+            presetNames.push(folderName);
+            // Try to use folder name as ID if it looks like a UUID
+            if (folderName && folderName.match(/^[0-9a-fA-F-]{36}$/)) {
+              presets.push({ id: folderName, name: folderName });
+            }
           }
         }
       }
@@ -550,7 +562,8 @@ export class DropboxService {
         fileSizeMB: ((fileMetadata.size || zipBuffer.length) / 1024 / 1024).toFixed(2) + ' MB',
         lastModified: fileMetadata.server_modified,
         md5Hash,
-        presetNames: presetNames.sort()
+        presetNames: presetNames.sort(),
+        presets
       };
     } catch (error: any) {
       console.error('Error getting backup info:', error);
