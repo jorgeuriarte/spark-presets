@@ -4,6 +4,7 @@ import AdmZip from 'adm-zip';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { DropboxStreamingService } from './dropbox-streaming.service';
 
 interface DropboxTokenResponse {
   access_token: string;
@@ -558,74 +559,93 @@ export class DropboxService {
   }
 
   /**
-   * Download and archive backup if it's new
+   * Archive backup to Dropbox (no local download)
    */
-  async downloadAndArchiveBackup(accessToken: string): Promise<string> {
-    this.dbx = new Dropbox({ accessToken, fetch: fetch as any });
+  async archiveBackupToDropbox(accessToken: string): Promise<{ dropboxPath: string; md5Hash: string }> {
+    const streamingService = new DropboxStreamingService(accessToken);
+    const zipPath = `${this.SPARK_AMP_PATH}/preset_backup.zip`;
+    
+    return await streamingService.archiveBackupToDropbox(zipPath);
+  }
+
+  /**
+   * Import presets from Dropbox backup (streaming)
+   */
+  async importPresetsFromDropbox(dropboxPath: string, userId: string, accessToken: string): Promise<ImportResult> {
+    const streamingService = new DropboxStreamingService(accessToken);
+    const result: ImportResult = {
+      imported: 0,
+      updated: 0,
+      skipped: 0,
+      errors: []
+    };
     
     try {
-      const zipPath = `${this.SPARK_AMP_PATH}/preset_backup.zip`;
+      // Stream presets directly from Dropbox
+      const presets = await streamingService.streamPresetsFromDropbox(dropboxPath);
       
-      // Download the ZIP file from Spark Amp folder
-      const response = await this.dbx.filesDownload({ path: zipPath });
-      const zipBuffer = (response.result as any).fileBinary;
+      // Create user presets directory if it doesn't exist
+      const userPresetsPath = path.join(__dirname, '../../data/user-presets', userId);
+      if (!fs.existsSync(userPresetsPath)) {
+        fs.mkdirSync(userPresetsPath, { recursive: true });
+      }
       
-      // Calculate MD5 hash
-      const md5Hash = crypto.createHash('md5').update(zipBuffer).digest('hex');
-      
-      // Define paths in Dropbox
-      const dropboxBackupsPath = '/Aplicaciones/Spark Preset Manager/backups';
-      const dropboxArchivePath = `${dropboxBackupsPath}/backup_${md5Hash}.zip`;
-      
-      // Check if backup already exists in Dropbox
-      try {
-        await this.dbx.filesGetMetadata({ path: dropboxArchivePath });
-        console.log(`Backup already archived in Dropbox: ${dropboxArchivePath}`);
-      } catch (error: any) {
-        if (error?.status === 409) { // File not found
-          // Create directory structure if needed
-          try {
-            await this.dbx.filesCreateFolderV2({ path: dropboxBackupsPath });
-          } catch (folderError: any) {
-            // Ignore if folder already exists
-            if (folderError?.status !== 409) {
-              throw folderError;
-            }
-          }
+      // Process each preset
+      for (const preset of presets) {
+        try {
+          // Save preset to local file system
+          const presetPath = path.join(userPresetsPath, `${preset.id}.json`);
           
-          // Upload the backup to Dropbox
-          await this.dbx.filesUpload({
-            path: dropboxArchivePath,
-            contents: zipBuffer,
-            mode: { '.tag': 'overwrite' },
-            autorename: false,
-            mute: false
-          });
+          // Create preset object with metadata
+          const presetData = {
+            meta: {
+              id: preset.id,
+              name: preset.name,
+              category: preset.category,
+              description: '',
+              version: preset.tone?.meta?.version || '0.7',
+              icon: 'icon.png',
+              importedAt: new Date().toISOString(),
+              importedFrom: 'dropbox_backup'
+            },
+            type: 'jamup_speaker',
+            bpm: preset.tone?.bpm || 120,
+            sigpath: preset.tone?.sigpath || preset.tone?.tone?.sigpath || [],
+            importedAt: new Date().toISOString() // Add at root level for easier access
+          };
           
-          console.log(`Archived new backup to Dropbox: ${dropboxArchivePath}`);
-        } else {
-          throw error;
+          // Save preset file
+          fs.writeFileSync(presetPath, JSON.stringify(presetData, null, 2));
+          result.imported++;
+          
+          console.log(`Imported preset: ${preset.name} (${preset.id})`);
+        } catch (error: any) {
+          console.error(`Error importing preset ${preset.id}:`, error);
+          result.errors.push(`Failed to import ${preset.name}: ${error.message}`);
         }
       }
       
-      // Also save locally for immediate access (temporary cache)
-      const localArchivePath = path.join(this.BACKUP_ARCHIVE_PATH, `backup_${md5Hash}.zip`);
-      if (!fs.existsSync(this.BACKUP_ARCHIVE_PATH)) {
-        fs.mkdirSync(this.BACKUP_ARCHIVE_PATH, { recursive: true });
-      }
-      if (!fs.existsSync(localArchivePath)) {
-        fs.writeFileSync(localArchivePath, zipBuffer);
-      }
+      console.log(`Import completed: ${result.imported} imported, ${result.errors.length} errors`);
       
-      return localArchivePath;
+      // Get backup info for history
+      const backupInfo = await streamingService.getBackupInfoFromDropbox(dropboxPath);
+      
+      // Save import history with backup info
+      this.saveImportHistory(userId, dropboxPath, result, backupInfo);
+      
+      // Update backup index
+      await streamingService.updateBackupIndex();
+      
+      return result;
     } catch (error: any) {
-      console.error('Error downloading/archiving backup:', error);
-      throw new Error(`Failed to download/archive backup: ${error.message}`);
+      console.error('Error importing presets:', error);
+      result.errors.push(error.message);
+      return result;
     }
   }
 
   /**
-   * Import presets from archived backup
+   * Import presets from archived backup (legacy - for local files)
    */
   async importPresetsFromBackup(backupPath: string, userId: string): Promise<ImportResult> {
     const result: ImportResult = {

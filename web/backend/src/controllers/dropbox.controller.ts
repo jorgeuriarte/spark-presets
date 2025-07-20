@@ -49,11 +49,11 @@ export const dropboxController = {
 
       const dropboxService = new DropboxService();
       
-      // Archive the backup if it's new
-      const backupPath = await dropboxService.downloadAndArchiveBackup(tokenData.accessToken);
+      // Archive the backup to Dropbox (no local download)
+      const { dropboxPath, md5Hash } = await dropboxService.archiveBackupToDropbox(tokenData.accessToken);
       
-      // Process and import presets
-      const result = await dropboxService.importPresetsFromBackup(backupPath, userId);
+      // Process and import presets directly from Dropbox
+      const result = await dropboxService.importPresetsFromDropbox(dropboxPath, userId, tokenData.accessToken);
       
       res.json({
         success: true,
