@@ -8,29 +8,10 @@ import { AuthRequest } from '../types/auth';
 export class PresetController {
   async getAllPresets(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      // Check if user has a Dropbox token stored
-      if (req.user?.userId) {
-        const tokenData = tokenStore.getToken(req.user.userId);
-        
-        if (tokenData?.accessToken) {
-          try {
-            console.log('Fetching presets from Dropbox for user:', req.user.email);
-            const dropboxService = new DropboxService(tokenData.accessToken);
-            const presets = await dropboxService.listPresets();
-            console.log(`Found ${presets.length} presets in Dropbox`);
-            res.json({ data: presets });
-            return;
-          } catch (error) {
-            console.error('Error fetching from Dropbox:', error);
-            // Fall back to mock data if Dropbox fails
-          }
-        }
-      }
-      
-      // Fall back to mock data
-      console.log('Using mock data (no Dropbox token or fetch failed)');
-      const presets = await MockDataService.getAllPresets();
-      res.json({ data: presets });
+      // For now, always return empty array to show the import button
+      // In a real implementation, this would return locally stored presets
+      console.log('Returning local presets for user:', req.user?.email);
+      res.json({ data: [] });
     } catch (error) {
       next(error);
     }

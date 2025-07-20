@@ -35,3 +35,40 @@
 - Crear formularios de edición y creación de presets
 - Integrar con Claude API para generación de presets
 - Implementar sistema de sincronización bidireccional con Dropbox
+
+## 2025-07-19 - Implementación OAuth Dropbox y Sistema de Tokens
+
+### Qué se hizo
+- Implementación completa del flujo OAuth 2.0 con Dropbox:
+  - Creación de nueva app Dropbox con permisos Full Dropbox
+  - Configuración de tokens offline para acceso permanente
+  - Redirect URI funcionando correctamente
+- Sistema de almacenamiento persistente de tokens:
+  - FileTokenStore con encriptación AES-256-CBC
+  - Los tokens sobreviven reinicios del servidor
+  - Almacenamiento en directorio .tokens
+- Extracción y procesamiento de presets desde ZIP:
+  - Búsqueda de preset_backup.zip en Dropbox
+  - Extracción de archivos .preset usando adm-zip
+  - Parseo de JSON y extracción de nombres reales
+- Configuración de Tailwind CSS para estilos
+- Limpieza del código: eliminación de PresetExamples
+
+### Decisiones tomadas
+- Usar almacenamiento en archivo para tokens (más simple que base de datos)
+- Encriptar tokens en reposo por seguridad
+- Extraer presets directamente del ZIP sin descargar todo el archivo
+- Mostrar nombres reales de presets desde el JSON
+
+### Desafíos/Aprendizajes
+- Dropbox requiere permisos "Full Dropbox" para acceder a carpetas de aplicaciones
+- Los tokens se perdían en cada reinicio hasta implementar persistencia
+- Los nombres de presets estaban en campos variados del JSON (name, preset_name, meta.name)
+- Tailwind requiere configuración específica con PostCSS
+
+### Próximos pasos
+- Rediseñar flujo: mostrar información del backup sin importar automáticamente
+- Implementar botón "Importar backup de Spark" con proceso manual
+- Investigar identificadores únicos en presets para evitar duplicados
+- Implementar sistema de detección de cambios (MD5/hash)
+- Crear archivo histórico de backups ZIP
