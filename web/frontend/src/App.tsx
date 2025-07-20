@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Header } from './components/Layout/Header';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
+import { PresetViewerDemo } from './pages/PresetViewerDemo';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -65,6 +66,7 @@ const AppContent: React.FC = () => {
             </ProtectedRoute>
           }
         />
+        <Route path="/demo/preset-viewer" element={<PresetViewerDemo />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
