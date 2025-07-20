@@ -5,6 +5,8 @@ export interface PresetParameter {
 export interface SignalPathItem {
   dspId: string;
   params: PresetParameter[];
+  active?: boolean;
+  isEnabled?: boolean;
 }
 
 export interface PresetMetadata {
@@ -17,6 +19,8 @@ export interface PresetMetadata {
   modifiedAt?: string;
   category?: string;
   tags?: string[];
+  importedAt?: string;
+  importedFrom?: string;
 }
 
 export interface Preset {
@@ -29,4 +33,5 @@ export interface Preset {
 export interface PresetWithEffects extends Preset {
   effects: string[];
   hash?: string;
+  importedAt?: string; // Also at root level for easier access
 }

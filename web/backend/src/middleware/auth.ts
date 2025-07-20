@@ -25,7 +25,7 @@ export const authMiddleware = async (
 
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET || 'default-secret'
+      process.env.JWT_SECRET || 'dev-secret'
     ) as AuthToken;
 
     req.user = decoded;

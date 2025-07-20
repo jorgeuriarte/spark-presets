@@ -7,6 +7,7 @@ interface BackupInfo {
   fileSizeMB: string;
   lastModified?: string;
   md5Hash?: string;
+  presetNames?: string[];
 }
 
 interface ImportResult {

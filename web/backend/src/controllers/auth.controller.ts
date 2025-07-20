@@ -87,11 +87,11 @@ export class AuthController {
       }
       
       // Redirect to frontend with token
-      const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3002'}/?token=${jwtToken}`;
+      const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/?token=${jwtToken}`;
       res.redirect(redirectUrl);
     } catch (error) {
       console.error('Dropbox callback error:', error);
-      const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3002'}/login?error=auth_failed`;
+      const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=auth_failed`;
       res.redirect(redirectUrl);
     }
   }

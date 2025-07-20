@@ -29,6 +29,7 @@ interface BackupInfo {
   fileSizeMB: string;
   lastModified?: string;
   md5Hash?: string;
+  presetNames?: string[];
 }
 
 interface ImportResult {
@@ -329,6 +330,71 @@ export class DropboxService {
   }
 
   /**
+   * Extract presets from a local ZIP file
+   */
+  private extractPresetsFromLocalZip(localZipPath: string): any[] {
+    try {
+      console.log('Extracting presets from local ZIP:', localZipPath);
+      
+      // Read the local ZIP file
+      const zipBuffer = fs.readFileSync(localZipPath);
+      
+      // Extract the ZIP contents
+      const zip = new AdmZip(zipBuffer);
+      const zipEntries = zip.getEntries();
+      
+      console.log(`Total entries in ZIP: ${zipEntries.length}`);
+      
+      const presets: any[] = [];
+      
+      for (const zipEntry of zipEntries) {
+        // Look for preset.json files (not .preset)
+        if (!zipEntry.isDirectory && zipEntry.entryName.endsWith('preset.json')) {
+          console.log('Found preset in ZIP:', zipEntry.entryName);
+          
+          try {
+            // Extract and parse the preset JSON content
+            const presetContent = zipEntry.getData().toString('utf8');
+            const presetData = JSON.parse(presetContent);
+            
+            // Extract metadata from path
+            const pathParts = zipEntry.entryName.split('/');
+            const presetId = pathParts[pathParts.length - 2]; // UUID folder
+            const category = pathParts[2]; // Category (Mic, Alternative, etc)
+            
+            // We'll extract effects later during import processing
+            let effects: string[] = [];
+            
+            // Extract preset name
+            let presetName = 'Unnamed Preset';
+            const meta = presetData.meta || presetData.preset?.meta;
+            if (meta?.name) {
+              presetName = meta.name;
+            }
+            
+            presets.push({
+              id: presetId,
+              name: presetName,
+              category,
+              effects,
+              filePath: `#${zipEntry.entryName}`, // Mark as ZIP entry
+              tone: presetData
+            });
+          } catch (error) {
+            console.error(`Error parsing preset ${zipEntry.entryName}:`, error);
+          }
+        }
+      }
+      
+      console.log(`Successfully parsed ${presets.length} presets from local ZIP`);
+      return presets;
+    } catch (error: any) {
+      console.error('Error extracting local ZIP:', error);
+      throw new Error(`Failed to extract local ZIP file: ${error.message}`);
+    }
+  }
+
+  /**
    * Download a preset file
    */
   async downloadPreset(path: string): Promise<any> {
@@ -452,6 +518,7 @@ export class DropboxService {
       const zipEntries = zip.getEntries();
       
       const categories = new Set<string>();
+      const presetNames: string[] = [];
       let presetCount = 0;
       
       for (const entry of zipEntries) {
@@ -460,6 +527,17 @@ export class DropboxService {
           const pathParts = entry.entryName.split('/');
           if (pathParts[2]) {
             categories.add(pathParts[2]);
+          }
+          
+          // Try to extract preset name from the JSON
+          try {
+            const presetContent = entry.getData().toString('utf8');
+            const presetData = JSON.parse(presetContent);
+            const name = presetData.meta?.name || presetData.name || presetData.preset_name || 'Unknown Preset';
+            presetNames.push(name);
+          } catch (err) {
+            // If we can't parse, use folder name
+            presetNames.push(pathParts[pathParts.length - 2] || 'Unknown');
           }
         }
       }
@@ -470,7 +548,8 @@ export class DropboxService {
         fileSize: fileMetadata.size || zipBuffer.length,
         fileSizeMB: ((fileMetadata.size || zipBuffer.length) / 1024 / 1024).toFixed(2) + ' MB',
         lastModified: fileMetadata.server_modified,
-        md5Hash
+        md5Hash,
+        presetNames: presetNames.sort()
       };
     } catch (error: any) {
       console.error('Error getting backup info:', error);
@@ -529,16 +608,51 @@ export class DropboxService {
     };
     
     try {
-      // Extract presets from ZIP
-      const presets = await this.extractPresetsFromZip(backupPath);
+      // Extract presets from local ZIP file
+      const presets = this.extractPresetsFromLocalZip(backupPath);
       
-      // TODO: Process each preset
-      // - Check if exists by UUID
-      // - Compare hash to detect changes
-      // - Import/update/skip accordingly
+      // Create user presets directory if it doesn't exist
+      const userPresetsPath = path.join(__dirname, '../../data/user-presets', userId);
+      if (!fs.existsSync(userPresetsPath)) {
+        fs.mkdirSync(userPresetsPath, { recursive: true });
+      }
       
-      // For now, just count them as imported
-      result.imported = presets.length;
+      // Process each preset
+      for (const preset of presets) {
+        try {
+          // Save preset to local file system
+          const presetPath = path.join(userPresetsPath, `${preset.id}.json`);
+          
+          // Create preset object with metadata
+          const presetData = {
+            meta: {
+              id: preset.id,
+              name: preset.name,
+              category: preset.category,
+              description: '',
+              version: preset.tone?.meta?.version || '0.7',
+              icon: 'icon.png',
+              importedAt: new Date().toISOString(),
+              importedFrom: 'dropbox_backup'
+            },
+            type: 'jamup_speaker',
+            bpm: preset.tone?.bpm || 120,
+            sigpath: preset.tone?.sigpath || preset.tone?.tone?.sigpath || [],
+            importedAt: new Date().toISOString() // Add at root level for easier access
+          };
+          
+          // Save preset file
+          fs.writeFileSync(presetPath, JSON.stringify(presetData, null, 2));
+          result.imported++;
+          
+          console.log(`Imported preset: ${preset.name} (${preset.id})`);
+        } catch (error: any) {
+          console.error(`Error importing preset ${preset.id}:`, error);
+          result.errors.push(`Failed to import ${preset.name}: ${error.message}`);
+        }
+      }
+      
+      console.log(`Import completed: ${result.imported} imported, ${result.errors.length} errors`);
       
       // Save import history
       this.saveImportHistory(userId, backupPath, result);

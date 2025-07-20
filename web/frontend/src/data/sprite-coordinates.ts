@@ -133,9 +133,105 @@ Object.values(effectCoordinates).forEach(category => {
   });
 });
 
+// Map of alternative DSP IDs to canonical ones
+const alternativeDspIds: { [key: string]: string } = {
+  // Noise Gates
+  'bias.noisegate': 'NoiseGate',
+  
+  // Compressors
+  'LA2AComp': 'LAComp',
+  'BlueComp': 'Sustainer',
+  'Compressor': 'RedComp',
+  'BassComp': 'Comp',
+  'BBEOpticalComp': 'Comp',
+  
+  // Drives
+  'DistortionTS9': 'TubeDrive',
+  'TS9': 'TubeDrive',
+  'Overdrive': 'OverDrive',
+  'ProCoRat': 'BlackOp',
+  'BassBigMuff': 'BassMuff',
+  'MaestroBassmaster': 'Bassmaster',
+  'SABDriver': 'SabDriver',
+  'SABdriver': 'SabDriver', // Note the lowercase 'd'
+  
+  // Amps
+  'Twin': 'BlackDuo',
+  '94MatchDCV2': 'MatchDC',
+  'ODS50CN': 'Sunny3000',
+  'BluesJrTweed': 'TwoStoneSP50',
+  'Bassman': 'TwoStoneSP50',
+  'AC Boost': 'ACBoost',
+  'Plexiglas': 'Plexi',
+  'OverDrivenJM45': 'JM45',
+  'OverDrivenLuxVerb': 'Bluesbreaker',
+  'Bogner': 'RB101',
+  'OrangeAD30': 'Silverline',
+  'AmericanHighGain': 'Solo100',
+  'SLO100': 'Solo100',
+  'Rectifier': 'Treadplate',
+  'EVH': 'PowerStage',
+  '6505Plus': 'PowerStage',
+  'SwitchAxeLead': 'PowerStage',
+  'Invader': 'RockerV',
+  'BE101': 'RockerV',
+  'Acoustic': 'AcousticAmpV2',
+  'AcousticAmp': 'AcousticAmpV2',
+  
+  // Bass Amps
+  'W600': 'Bassman',
+  'GK800': 'Bassman',
+  'Hammer500': 'Bassman',
+  
+  // Jimi Hendrix specific
+  'JH.Vox846': 'Vibe', // Vox Wah
+  'JH.AxisFuzz': 'Fuzz',
+  'JH.SuperLead100': 'Plexi',
+  'JH.SuperLeadFull': 'Plexi',
+  'JH.VoodooVibeJr': 'Vibe',
+  
+  // Modulation
+  'ChorusAnalog': 'DigitalChorus',
+  'Chorus': 'DigitalChorus',
+  'UniVibe': 'Vibe',
+  'RingModulator': 'Tremolator',
+  
+  // Delays
+  'DelayMono': 'DigitalDelay',
+  'DelayEchoFilt': 'DelayEcho',
+  'EchoFilter': 'DelayEcho', // Echo Filter
+  'DelayReverse': 'Reverse',
+  'DelayMultiHead': 'MultiHead',
+  'DelayAnalog': 'Echotape',
+  'DelayRe201': 'VintageDelay', // Roland RE-201 Space Echo
+  
+  // Reverbs
+  'bias.reverb': 'RoomStudioA',
+  'RoomReverb': 'RoomStudioA',
+  'PlateReverb': 'Plate',
+  'SpringReverb': 'Spring',
+  'Room': 'RoomStudioA',
+  'Hall': 'HallNatural',
+  'Stadium': 'HallNatural',
+  'Cathedral': 'HallNatural',
+  'AmbientReverb': 'Ambience',
+  'VintageRoom': 'ClassicPlate'
+};
+
 // Helper functions
 export function getSpriteByDspId(dspId: string): SpriteCoordinate | null {
-  return dspIdToSprite[dspId] || null;
+  // First try direct lookup
+  if (dspIdToSprite[dspId]) {
+    return dspIdToSprite[dspId];
+  }
+  
+  // Then try alternative IDs
+  const canonicalId = alternativeDspIds[dspId];
+  if (canonicalId && dspIdToSprite[canonicalId]) {
+    return dspIdToSprite[canonicalId];
+  }
+  
+  return null;
 }
 
 export function generateSpriteStyle(dspId: string): React.CSSProperties | null {

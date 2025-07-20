@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { dropboxService } from '../services/dropbox';
+import { presetsService } from '../services/presets';
 
 interface BackupInfo {
   totalPresets: number;
@@ -9,22 +10,51 @@ interface BackupInfo {
   fileSizeMB: string;
   lastModified?: string;
   md5Hash?: string;
+  presetNames?: string[]; // List of preset names in backup
 }
 
-export const BackupInfo: React.FC = () => {
+interface BackupInfoProps {
+  currentPresetCount: number;
+}
+
+export const BackupInfo: React.FC<BackupInfoProps> = ({ currentPresetCount }) => {
   const queryClient = useQueryClient();
   const [isImporting, setIsImporting] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
 
-  const { data: backupInfo, isLoading: loadingInfo } = useQuery({
+  // Query backup info with automatic refetch every 5 minutes
+  const { data: backupInfo, isLoading: loadingInfo, isFetching, refetch } = useQuery({
     queryKey: ['backup-info'],
     queryFn: dropboxService.getBackupInfo,
+    refetchInterval: 5 * 60 * 1000, // 5 minutes
+    staleTime: 4 * 60 * 1000, // 4 minutes
   });
+
+  // Check import history to determine new presets
+  const { data: importHistory } = useQuery({
+    queryKey: ['import-history'],
+    queryFn: dropboxService.getImportHistory,
+  });
+
+  // Get current preset names to compare
+  const { data: currentPresets = [] } = useQuery({
+    queryKey: ['presets'],
+    queryFn: presetsService.getAll,
+  });
+
+  // Calculate new presets available
+  const currentPresetNames = new Set(currentPresets.map((p: any) => p.meta?.name || p.name));
+  const newPresetNames = backupInfo?.presetNames?.filter((name: string) => !currentPresetNames.has(name)) || [];
+  const newPresetsAvailable = newPresetNames.length;
+  const hasNewPresets = newPresetsAvailable > 0;
 
   const importMutation = useMutation({
     mutationFn: dropboxService.importBackup,
     onSuccess: () => {
       // Refresh presets after import
       queryClient.invalidateQueries({ queryKey: ['presets'] });
+      queryClient.invalidateQueries({ queryKey: ['backup-info'] });
+      queryClient.invalidateQueries({ queryKey: ['import-history'] });
       setIsImporting(false);
     },
     onError: (error) => {
@@ -34,65 +64,112 @@ export const BackupInfo: React.FC = () => {
   });
 
   const handleImport = async () => {
-    if (window.confirm('¿Deseas importar todos los presets del backup? Esto puede tomar unos momentos.')) {
+    const message = hasNewPresets 
+      ? `¿Deseas importar ${newPresetsAvailable} nuevos presets del backup?`
+      : '¿Deseas sincronizar todos los presets del backup? Esto puede tomar unos momentos.';
+      
+    if (window.confirm(message)) {
       setIsImporting(true);
       importMutation.mutate();
     }
   };
 
-  if (loadingInfo) {
+  const handleManualRefresh = () => {
+    refetch();
+  };
+
+  // Show loading state only on initial load
+  if (loadingInfo && !backupInfo) {
     return (
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+      <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 mb-4">
         <div className="flex items-center">
-          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3"></div>
-          <p className="text-blue-800">Verificando backup en Dropbox...</p>
+          <svg className="animate-spin h-5 w-5 text-gray-500 mr-2" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p className="text-sm text-gray-300">Comprobando disponibilidad de backup de Spark en Dropbox...</p>
         </div>
       </div>
     );
   }
 
-  if (!backupInfo) {
-    return null;
+  // Show "no backups" message when there's no backup info
+  if (!loadingInfo && !backupInfo) {
+    return (
+      <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 mb-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <svg className="h-5 w-5 text-gray-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <p className="text-sm text-gray-300">No hay backups de Spark pendientes en Dropbox</p>
+          </div>
+          <button
+            onClick={handleManualRefresh}
+            className="text-sm text-blue-400 hover:text-blue-300 font-medium"
+          >
+            Actualizar
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-      <div className="flex items-start">
-        <div className="flex-shrink-0">
-          <svg className="h-6 w-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+    <div className={`border rounded-lg p-3 mb-4 transition-all duration-200 ${
+      hasNewPresets ? 'bg-blue-900/20 border-blue-600' : 'bg-gray-800 border-gray-700'
+    }`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center flex-1">
+          <svg className={`h-5 w-5 mr-2 ${
+            hasNewPresets ? 'text-blue-400' : 'text-gray-400'
+          }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
           </svg>
-        </div>
-        <div className="ml-3 flex-1">
-          <h3 className="text-lg font-medium text-blue-900">
-            Backup de Spark Amp detectado
-          </h3>
-          <div className="mt-2 text-sm text-blue-700">
-            <p>
-              Hemos encontrado un archivo de backup con <strong>{backupInfo.totalPresets} presets</strong> en tu Dropbox.
-            </p>
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <p className="font-medium">Categorías:</p>
-                <p className="text-blue-600">{backupInfo.categories.join(', ')}</p>
-              </div>
-              <div>
-                <p className="font-medium">Tamaño:</p>
-                <p className="text-blue-600">{backupInfo.fileSizeMB}</p>
-              </div>
-              {backupInfo.lastModified && (
-                <div className="sm:col-span-2">
-                  <p className="font-medium">Última modificación:</p>
-                  <p className="text-blue-600">{new Date(backupInfo.lastModified).toLocaleString()}</p>
-                </div>
-              )}
-            </div>
+          <div className="flex-1">
+            {isFetching ? (
+              <p className="text-sm text-gray-300 flex items-center">
+                <svg className="animate-spin h-4 w-4 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Comprobando disponibilidad de backup...
+              </p>
+            ) : hasNewPresets ? (
+              <p className="text-sm font-medium text-blue-300">
+                {newPresetsAvailable} {newPresetsAvailable === 1 ? 'nuevo preset disponible' : 'nuevos presets disponibles'} en tu backup de Spark
+              </p>
+            ) : (
+              <p className="text-sm text-gray-300">
+                Backup de Spark sincronizado • {backupInfo?.totalPresets || 0} presets en total
+              </p>
+            )}
           </div>
-          <div className="mt-4">
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          {showDetails && (
+            <span className="text-xs text-gray-400 mr-2">
+              {backupInfo?.fileSizeMB} • Actualizado: {backupInfo?.lastModified ? new Date(backupInfo.lastModified).toLocaleDateString() : 'N/A'}
+            </span>
+          )}
+          
+          <button
+            onClick={() => setShowDetails(!showDetails)}
+            className="text-sm text-gray-400 hover:text-gray-200"
+          >
+            <svg className={`h-4 w-4 transition-transform ${
+              showDetails ? 'rotate-180' : ''
+            }`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          
+          {hasNewPresets && (
             <button
               onClick={handleImport}
               disabled={isImporting || importMutation.isPending}
-              className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white ${
+              className={`inline-flex items-center px-3 py-1 text-sm font-medium rounded-md text-white ${
                 isImporting || importMutation.isPending
                   ? 'bg-blue-400 cursor-not-allowed'
                   : 'bg-blue-600 hover:bg-blue-700'
@@ -100,34 +177,89 @@ export const BackupInfo: React.FC = () => {
             >
               {isImporting || importMutation.isPending ? (
                 <>
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                   Importando...
                 </>
               ) : (
-                <>
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                  </svg>
-                  Importar backup de Spark
-                </>
+                'Importar ahora'
               )}
             </button>
-            {importMutation.isSuccess && (
-              <p className="mt-2 text-sm text-green-600">
-                ✓ Backup importado exitosamente
-              </p>
-            )}
-            {importMutation.isError && (
-              <p className="mt-2 text-sm text-red-600">
-                ✗ Error al importar el backup. Por favor, intenta de nuevo.
-              </p>
-            )}
-          </div>
+          )}
+          
+          <button
+            onClick={handleManualRefresh}
+            disabled={isFetching}
+            className={`text-sm font-medium transition-colors ${
+              isFetching 
+                ? 'text-gray-500 cursor-not-allowed' 
+                : 'text-blue-400 hover:text-blue-300'
+            }`}
+            title="Actualizar información del backup"
+          >
+            <svg className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
         </div>
       </div>
+      
+      {showDetails && backupInfo && (
+        <div className="mt-3 pt-3 border-t border-gray-700">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div>
+              <p className="text-gray-400">Total presets</p>
+              <p className="font-medium text-gray-100">{backupInfo.totalPresets}</p>
+            </div>
+            <div>
+              <p className="text-gray-400">Categorías</p>
+              <p className="font-medium text-gray-100">{backupInfo.categories.length}</p>
+            </div>
+            <div>
+              <p className="text-gray-400">Tamaño</p>
+              <p className="font-medium text-gray-100">{backupInfo.fileSizeMB}</p>
+            </div>
+            <div>
+              <p className="text-gray-400">Importados</p>
+              <p className="font-medium text-gray-100">{currentPresetCount}</p>
+            </div>
+          </div>
+          
+          {/* Show new presets list when available */}
+          {hasNewPresets && newPresetNames.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-700">
+              <p className="text-xs text-gray-300 font-medium mb-2">Presets nuevos disponibles:</p>
+              <div className="max-h-32 overflow-y-auto">
+                <ul className="text-xs text-gray-300 space-y-1">
+                  {newPresetNames.slice(0, 10).map((name: string, index: number) => (
+                    <li key={index} className="flex items-center">
+                      <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>
+                      {name}
+                    </li>
+                  ))}
+                  {newPresetNames.length > 10 && (
+                    <li className="text-gray-400 italic">...y {newPresetNames.length - 10} más</li>
+                  )}
+                </ul>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {importMutation.isSuccess && (
+        <div className="mt-2 text-sm text-green-400 text-center">
+          ✓ Backup importado exitosamente
+        </div>
+      )}
+      
+      {importMutation.isError && (
+        <div className="mt-2 text-sm text-red-400 text-center">
+          ✗ Error al importar el backup. Por favor, intenta de nuevo.
+        </div>
+      )}
     </div>
   );
 };

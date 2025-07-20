@@ -13,6 +13,7 @@ export const Dashboard: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { user, checkAuth } = useAuth();
   const [selectedPreset, setSelectedPreset] = useState<PresetWithEffects | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   // Handle OAuth callback token
   useEffect(() => {
@@ -50,13 +51,26 @@ export const Dashboard: React.FC = () => {
     navigate('/preset/new');
   };
 
+  // Get unique categories from presets
+  const categories = Array.from(new Set(
+    presets.map(p => p.meta?.category || p.meta?.tags?.[0] || 'Custom')
+  )).sort();
+
+  // Filter presets by category
+  const filteredPresets = selectedCategory === 'all' 
+    ? presets 
+    : presets.filter(p => {
+        const category = p.meta?.category || p.meta?.tags?.[0] || 'Custom';
+        return category === selectedCategory;
+      });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-spark-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Cargando presets desde Dropbox...</p>
-          <p className="text-sm text-gray-500 mt-2">Esto puede tardar unos segundos</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-300">Cargando presets desde Dropbox...</p>
+          <p className="text-sm text-gray-400 mt-2">Esto puede tardar unos segundos</p>
         </div>
       </div>
     );
@@ -65,7 +79,7 @@ export const Dashboard: React.FC = () => {
   if (error) {
     return (
       <div className="text-center py-12">
-        <p className="text-red-600">Error al cargar los presets</p>
+        <p className="text-red-400">Error al cargar los presets</p>
       </div>
     );
   }
@@ -74,12 +88,12 @@ export const Dashboard: React.FC = () => {
   if (!user?.dropboxConnected) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center py-12 bg-white rounded-lg shadow">
-          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="text-center py-12 bg-gray-800 border border-gray-700 rounded-lg shadow">
+          <svg className="mx-auto h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
           </svg>
-          <h3 className="mt-2 text-lg font-medium text-gray-900">Conecta tu Dropbox</h3>
-          <p className="mt-1 text-sm text-gray-500">
+          <h3 className="mt-2 text-lg font-medium text-gray-100">Conecta tu Dropbox</h3>
+          <p className="mt-1 text-sm text-gray-400">
             Para acceder a tus presets de Spark, necesitas conectar tu cuenta de Dropbox.
           </p>
           <div className="mt-6">
@@ -100,29 +114,67 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Show backup info banner at the top */}
+      {user?.dropboxConnected && <BackupInfo currentPresetCount={presets.length} />}
+      
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Mis Presets</h1>
-        <p className="text-gray-600 mt-1">
-          {presets.length} {presets.length === 1 ? 'preset' : 'presets'} disponibles
+        <h1 className="text-2xl font-bold text-gray-100">Mis Presets</h1>
+        <p className="text-gray-400 mt-1">
+          {filteredPresets.length} de {presets.length} {presets.length === 1 ? 'preset' : 'presets'} {selectedCategory !== 'all' ? `en ${selectedCategory}` : ''}
         </p>
       </div>
 
-      {/* Show backup info if connected but no presets */}
-      {user?.dropboxConnected && presets.length === 0 && <BackupInfo />}
+      {/* Category filters */}
+      {categories.length > 0 && (
+        <div className="mb-6">
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setSelectedCategory('all')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors ${
+                selectedCategory === 'all'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              Todos ({presets.length})
+            </button>
+            {categories.map(category => {
+              const count = presets.filter(p => {
+                const pCategory = p.meta?.category || p.meta?.tags?.[0] || 'Custom';
+                return pCategory === category;
+              }).length;
+              
+              return (
+                <button
+                  key={category}
+                  onClick={() => setSelectedCategory(category)}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors ${
+                    selectedCategory === category
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  {category} ({count})
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {presets.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-lg">
-          <p className="text-gray-500 mb-4">No tienes presets aún</p>
+        <div className="text-center py-12 bg-gray-800 border border-gray-700 rounded-lg">
+          <p className="text-gray-400 mb-4">No tienes presets aún</p>
           <button
             onClick={handleCreate}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-spark-600 hover:bg-spark-700"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
           >
             Crear tu primer preset
           </button>
         </div>
       ) : (
-        <div className="grid gap-4">
-          {presets.map((preset) => (
+        <div className="grid gap-2">
+          {filteredPresets.map((preset) => (
             <PresetItem
               key={preset.meta.id}
               preset={preset}

@@ -1,5 +1,83 @@
 # Diario de Desarrollo - Spark Preset Manager
 
+## 2025-07-20 - Mapeo Completo de Efectos y DSP IDs
+
+### Qué se hizo
+- Análisis del problema de mapeo de IDs de efectos (bias.noisegate, BassComp, etc.)
+- Investigación del proyecto Ignitron para obtener mapeos correctos
+- Creación de archivo dsp-mappings.ts con mapeo completo de DSP IDs a nombres
+- Implementación de preset-processor para extraer efectos del sigpath
+- Actualización de PresetViewer para usar nombres correctos de efectos
+- Integración del procesador en el controlador de presets
+
+### Decisiones tomadas
+- Crear un mapeo centralizado basado en la información de Ignitron
+- Procesar presets al cargarlos para extraer efectos correctamente
+- Mantener compatibilidad con diferentes formatos de presets
+- Usar el mismo mapeo en frontend y backend
+
+### Desafíos/Aprendizajes
+- Los DSP IDs varían entre diferentes versiones del Spark
+- Algunos efectos tienen múltiples IDs posibles
+- El proyecto Ignitron tiene documentación valiosa sobre los efectos
+- Necesario manejar claves duplicadas en el mapeo
+
+### Próximos pasos
+- Completar el mapeo con más efectos si aparecen
+- Implementar la visualización de sprites faltantes
+- Mejorar la extracción de parámetros específicos por tipo
+
+## 2025-07-20 - Corrección de Mapeo de Sprites
+
+### Qué se hizo
+- Identificación del problema: los dspIds del backend no coincidían con los del sprite map
+- Creación de mapeo de IDs alternativos en sprite-coordinates.ts
+- Actualización de getSpriteByDspId para buscar por IDs alternativos
+- Mapeo de efectos como bias.noisegate → NoiseGate, BassComp → Comp, etc.
+
+### Decisiones tomadas
+- Mantener los dspIds originales del sprite map como canónicos
+- Crear un mapeo de traducción para IDs alternativos
+- Reutilizar sprites existentes para efectos similares
+
+### Desafíos/Aprendizajes
+- Los presets usan diferentes IDs que los sprites (ej: bias.noisegate vs NoiseGate)
+- Algunos efectos comparten el mismo sprite visual
+- Necesario mantener compatibilidad con múltiples formatos de IDs
+
+### Próximos pasos
+- Obtener coordenadas exactas para efectos que no tienen sprite propio
+- Crear sprites genéricos para efectos no mapeados
+- Documentar todos los posibles dspIds
+
+## 2025-07-20 - Mejoras UI: Filtros y Visor de Presets
+
+### Qué se hizo
+- Implementación de filtros por categoría en la lista de presets
+- Añadido badge de categoría en cada preset con colores distintivos
+- Rediseño de PresetItem con diseño más compacto (padding reducido)
+- Añadido botón "ver" (ícono de ojo) para expandir el visor de preset
+- Implementación de visor de preset expandible que muestra la cadena de efectos
+- Tooltips interactivos que muestran la configuración de cada efecto al hacer clic
+
+### Decisiones tomadas
+- Usar categorías existentes del backup de Spark para los filtros
+- Mostrar contador de presets en cada categoría
+- Diseño inline para el visor expandible en lugar de modal
+- Tooltips con información de parámetros formateada en porcentajes
+- Mantener el tema claro para mejor legibilidad
+
+### Desafíos/Aprendizajes
+- Las categorías vienen del campo category o del primer tag
+- Los parámetros de efectos necesitan nombres descriptivos por tipo
+- El visor necesita ser responsive para cadenas largas de efectos
+
+### Próximos pasos
+- Implementar edición de presets
+- Añadir funcionalidad de búsqueda en el header
+- Implementar creación de nuevos presets
+- Sistema de detección de presets modificados (MD5/hash)
+
 ## 2025-07-19 - Inicio del Proyecto Web
 
 ### Qué se hizo

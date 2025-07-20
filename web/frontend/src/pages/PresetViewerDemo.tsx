@@ -1,9 +1,9 @@
 import React from 'react';
 import PresetViewer from '../components/PresetViewer';
-import { Preset } from '../types/preset';
+import { PresetWithEffects } from '../types/preset';
 
 // Datos de ejemplo para la demo
-const demoPreset: Preset = {
+const demoPreset: PresetWithEffects = {
   meta: {
     id: 'demo-1',
     name: 'Stone Breaker Blues',
@@ -69,10 +69,11 @@ const demoPreset: Preset = {
         { value: 0.4 }
       ]
     }
-  ]
+  ],
+  effects: ['Noise Gate', 'Compressor', 'Overdrive', 'Amp', 'Tremolo', 'Delay', 'Reverb']
 };
 
-const demoPreset2: Preset = {
+const demoPreset2: PresetWithEffects = {
   meta: {
     id: 'demo-2',
     name: 'Metal Mayhem',
@@ -115,10 +116,11 @@ const demoPreset2: Preset = {
         { value: 0.2 }
       ]
     }
-  ]
+  ],
+  effects: ['Noise Gate', 'Distortion', 'Amp', 'Reverb']
 };
 
-const demoPreset3: Preset = {
+const demoPreset3: PresetWithEffects = {
   meta: {
     id: 'demo-3',
     name: 'Clean Jazz',
@@ -161,11 +163,12 @@ const demoPreset3: Preset = {
         { value: 0.4 }
       ]
     }
-  ]
+  ],
+  effects: ['Compressor', 'Amp', 'Chorus', 'Reverb']
 };
 
 export const PresetViewerDemo: React.FC = () => {
-  const [selectedPreset, setSelectedPreset] = React.useState<Preset>(demoPreset);
+  const [selectedPreset, setSelectedPreset] = React.useState<PresetWithEffects>(demoPreset);
 
   return (
     <div className="min-h-screen bg-gray-100 py-8">

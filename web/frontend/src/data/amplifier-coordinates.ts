@@ -254,7 +254,7 @@ export const amplifierCoordinates = {
 };
 
 // Crear mapeo directo de dspId a coordenadas
-export const dspIdToCoordinates = {};
+export const dspIdToCoordinates: Record<string, any> = {};
 Object.values(amplifierCoordinates).forEach(category => {
   category.forEach(amp => {
     dspIdToCoordinates[amp.dspId] = amp;
@@ -262,7 +262,7 @@ Object.values(amplifierCoordinates).forEach(category => {
 });
 
 // Función para generar CSS dinámico
-export function generateAmplifierCSS(amp) {
+export function generateAmplifierCSS(amp: any) {
   return {
     backgroundImage: 'url("/full_image_map.jpg")',
     backgroundPosition: `-${amp.x}px -${amp.y}px`,
@@ -274,12 +274,12 @@ export function generateAmplifierCSS(amp) {
 }
 
 // Función para generar clase CSS por nombre
-export function generateCSSClassName(name) {
+export function generateCSSClassName(name: string) {
   return name.toLowerCase().replace(/\s+/g, '-');
 }
 
 // Función para obtener amplificador por dspId
-export function getAmplifierByDspId(dspId) {
+export function getAmplifierByDspId(dspId: string) {
   return dspIdToCoordinates[dspId] || null;
 }
 

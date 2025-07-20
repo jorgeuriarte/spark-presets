@@ -377,7 +377,7 @@ export const effectCoordinates = {
 };
 
 // Crear mapeo directo de dspId a coordenadas
-export const dspIdToEffectCoordinates = {};
+export const dspIdToEffectCoordinates: Record<string, any> = {};
 Object.values(effectCoordinates).forEach(category => {
   category.forEach(effect => {
     dspIdToEffectCoordinates[effect.dspId] = effect;
@@ -385,7 +385,7 @@ Object.values(effectCoordinates).forEach(category => {
 });
 
 // Función para generar CSS dinámico
-export function generateEffectCSS(effect) {
+export function generateEffectCSS(effect: any) {
   return {
     backgroundImage: 'url("/full_image_map.jpg")',
     backgroundPosition: `-${effect.x}px -${effect.y}px`,
@@ -397,12 +397,12 @@ export function generateEffectCSS(effect) {
 }
 
 // Función para generar clase CSS por nombre
-export function generateEffectCSSClassName(name) {
+export function generateEffectCSSClassName(name: string) {
   return name.toLowerCase().replace(/\s+/g, '-');
 }
 
 // Función para obtener efecto por dspId
-export function getEffectByDspId(dspId) {
+export function getEffectByDspId(dspId: string) {
   return dspIdToEffectCoordinates[dspId] || null;
 }
 

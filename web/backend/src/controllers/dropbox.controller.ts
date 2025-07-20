@@ -6,7 +6,7 @@ export const dropboxController = {
   // Get backup info without importing
   async getBackupInfo(req: Request, res: Response): Promise<void> {
     try {
-      const userId = req.user?.id;
+      const userId = req.user?.userId;
       if (!userId) {
         res.status(401).json({ error: 'User not authenticated' });
         return;
@@ -34,7 +34,7 @@ export const dropboxController = {
   // Import presets from backup (manual process)
   async importBackup(req: Request, res: Response): Promise<void> {
     try {
-      const userId = req.user?.id;
+      const userId = req.user?.userId;
       if (!userId) {
         res.status(401).json({ error: 'User not authenticated' });
         return;
@@ -74,7 +74,7 @@ export const dropboxController = {
   // Get import history
   async getImportHistory(req: Request, res: Response): Promise<void> {
     try {
-      const userId = req.user?.id;
+      const userId = req.user?.userId;
       if (!userId) {
         res.status(401).json({ error: 'User not authenticated' });
         return;
