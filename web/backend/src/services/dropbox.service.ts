@@ -563,36 +563,64 @@ export class DropboxService {
   async downloadAndArchiveBackup(accessToken: string): Promise<string> {
     this.dbx = new Dropbox({ accessToken, fetch: fetch as any });
     
-    // Ensure archive directory exists
-    if (!fs.existsSync(this.BACKUP_ARCHIVE_PATH)) {
-      fs.mkdirSync(this.BACKUP_ARCHIVE_PATH, { recursive: true });
-    }
-    
     try {
       const zipPath = `${this.SPARK_AMP_PATH}/preset_backup.zip`;
       
-      // Download the ZIP file
+      // Download the ZIP file from Spark Amp folder
       const response = await this.dbx.filesDownload({ path: zipPath });
       const zipBuffer = (response.result as any).fileBinary;
       
       // Calculate MD5 hash
       const md5Hash = crypto.createHash('md5').update(zipBuffer).digest('hex');
       
-      // Check if we already have this version
-      const archivePath = path.join(this.BACKUP_ARCHIVE_PATH, `backup_${md5Hash}.zip`);
+      // Define paths in Dropbox
+      const dropboxBackupsPath = '/Aplicaciones/Spark Preset Manager/backups';
+      const dropboxArchivePath = `${dropboxBackupsPath}/backup_${md5Hash}.zip`;
       
-      if (!fs.existsSync(archivePath)) {
-        // Save new version
-        fs.writeFileSync(archivePath, zipBuffer);
-        console.log(`Archived new backup: ${archivePath}`);
-      } else {
-        console.log(`Backup already archived: ${archivePath}`);
+      // Check if backup already exists in Dropbox
+      try {
+        await this.dbx.filesGetMetadata({ path: dropboxArchivePath });
+        console.log(`Backup already archived in Dropbox: ${dropboxArchivePath}`);
+      } catch (error: any) {
+        if (error?.status === 409) { // File not found
+          // Create directory structure if needed
+          try {
+            await this.dbx.filesCreateFolderV2({ path: dropboxBackupsPath });
+          } catch (folderError: any) {
+            // Ignore if folder already exists
+            if (folderError?.status !== 409) {
+              throw folderError;
+            }
+          }
+          
+          // Upload the backup to Dropbox
+          await this.dbx.filesUpload({
+            path: dropboxArchivePath,
+            contents: zipBuffer,
+            mode: { '.tag': 'overwrite' },
+            autorename: false,
+            mute: false
+          });
+          
+          console.log(`Archived new backup to Dropbox: ${dropboxArchivePath}`);
+        } else {
+          throw error;
+        }
       }
       
-      return archivePath;
+      // Also save locally for immediate access (temporary cache)
+      const localArchivePath = path.join(this.BACKUP_ARCHIVE_PATH, `backup_${md5Hash}.zip`);
+      if (!fs.existsSync(this.BACKUP_ARCHIVE_PATH)) {
+        fs.mkdirSync(this.BACKUP_ARCHIVE_PATH, { recursive: true });
+      }
+      if (!fs.existsSync(localArchivePath)) {
+        fs.writeFileSync(localArchivePath, zipBuffer);
+      }
+      
+      return localArchivePath;
     } catch (error: any) {
-      console.error('Error downloading backup:', error);
-      throw new Error(`Failed to download backup: ${error.message}`);
+      console.error('Error downloading/archiving backup:', error);
+      throw new Error(`Failed to download/archive backup: ${error.message}`);
     }
   }
 
@@ -706,7 +734,7 @@ export class DropboxService {
   private async getBackupInfoFromArchive(archivePath: string): Promise<BackupInfo> {
     try {
       const zipBuffer = fs.readFileSync(archivePath);
-      const zipData = await JSZip.loadAsync(zipBuffer);
+      const zip = new AdmZip(archivePath);
       
       // Get file stats
       const stats = fs.statSync(archivePath);
@@ -717,13 +745,14 @@ export class DropboxService {
       const md5Hash = crypto.createHash('md5').update(zipBuffer).digest('hex');
       
       // Count presets and get categories
-      const presetFiles = Object.keys(zipData.files).filter(f => f.endsWith('.json'));
+      const zipEntries = zip.getEntries();
+      const presetFiles = zipEntries.filter(entry => entry.entryName.endsWith('.json'));
       const categories = new Set<string>();
       const presetNames: string[] = [];
       
-      for (const file of presetFiles) {
+      for (const entry of presetFiles) {
         try {
-          const content = await zipData.files[file].async('string');
+          const content = entry.getData().toString('utf8');
           const preset = JSON.parse(content);
           if (preset.category) {
             categories.add(preset.category);
