@@ -55,8 +55,16 @@ export function processPreset(presetData: any): ProcessedPreset {
   const effects = extractEffectsFromSigpath(sigpath);
   
   // Generate content hash from sigpath and bpm
+  // Normalize sigpath for consistent hashing
+  const normalizedSigpath = sigpath.map((item: any) => ({
+    dspId: item.dspId,
+    // Round parameter values to avoid floating point differences
+    params: (item.params || []).map((p: any) => ({
+      value: Math.round(p.value * 1000) / 1000
+    }))
+  }));
   const contentToHash = JSON.stringify({
-    sigpath: sigpath,
+    sigpath: normalizedSigpath,
     bpm: presetData.bpm || 120
   });
   const contentHash = crypto.createHash('md5').update(contentToHash).digest('hex');

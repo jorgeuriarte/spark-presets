@@ -59,6 +59,7 @@ export const BackupInfo: React.FC<BackupInfoProps> = ({ currentPresetCount }) =>
     queryKey: ['presets'],
     queryFn: presetsService.getAll,
   });
+  
 
   // Calculate new and modified presets
   const currentPresetMap = new Map(
@@ -89,6 +90,7 @@ export const BackupInfo: React.FC<BackupInfoProps> = ({ currentPresetCount }) =>
       let oldName: string | undefined;
       let oldCategory: string | undefined;
       
+      
       if (currentPreset.name !== backupPreset.name) {
         changes.push('nombre');
         oldName = currentPreset.name;
@@ -99,9 +101,12 @@ export const BackupInfo: React.FC<BackupInfoProps> = ({ currentPresetCount }) =>
         oldCategory = currentPreset.category;
       }
       
-      if (currentPreset.contentHash && backupPreset.contentHash && 
-          currentPreset.contentHash !== backupPreset.contentHash) {
-        changes.push('configuración');
+      // Solo comparar contentHash si ambos existen
+      // Si uno no existe, asumimos que hubo cambios
+      if (backupPreset.contentHash) {
+        if (!currentPreset.contentHash || currentPreset.contentHash !== backupPreset.contentHash) {
+          changes.push('configuración');
+        }
       }
       
       if (changes.length > 0) {

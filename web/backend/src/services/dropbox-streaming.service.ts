@@ -162,9 +162,17 @@ export class DropboxStreamingService {
           
           // Generate content hash
           const toneData = preset.tone || preset;
+          // Normalize sigpath for consistent hashing
+          const normalizedSigpath = (toneData.sigpath || []).map((item: any) => ({
+            dspId: item.dspId,
+            // Round parameter values to avoid floating point differences
+            params: (item.params || []).map((p: any) => ({
+              value: Math.round(p.value * 1000) / 1000
+            }))
+          }));
           const contentToHash = JSON.stringify({
-            sigpath: toneData.sigpath || [],
-            bpm: toneData.bpm
+            sigpath: normalizedSigpath,
+            bpm: toneData.bpm || 120
           });
           const contentHash = crypto.createHash('md5').update(contentToHash).digest('hex');
           
